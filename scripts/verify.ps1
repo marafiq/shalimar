@@ -35,6 +35,22 @@ function Require-Command([string]$name, [string]$hint) {
     }
 }
 
+function Acquire-VerifyLock() {
+    $lockDir = Join-Path ([System.IO.Path]::GetTempPath()) "shalimar-verify.lock"
+    try {
+        [System.IO.Directory]::CreateDirectory($lockDir) | Out-Null
+        $pidPath = Join-Path $lockDir "pid"
+        Set-Content -Path $pidPath -Value $PID -NoNewline
+        return $lockDir
+    } catch {
+        throw "Another verify run is already in progress (lock: $lockDir)."
+    }
+}
+
+function Release-VerifyLock([string]$lockDir) {
+    try { Remove-Item $lockDir -Recurse -Force -ErrorAction SilentlyContinue } catch { }
+}
+
 Write-Host "Shalimar verify (zero-step)..." -ForegroundColor Cyan
 Write-Host "  Repo: $RepoRoot"
 Write-Host "  Configuration: $Configuration"
@@ -45,6 +61,8 @@ Write-Host "  SkipE2E: $SkipE2E"
 Require-Command dotnet "Install the .NET SDK pinned by global.json."
 Require-Command bun "Install bun (https://bun.sh/) for Vite/TS tooling."
 
+ $lock = Acquire-VerifyLock
+ try {
 Write-Host "`n[1/4] Restore" -ForegroundColor Cyan
 & "$PSScriptRoot/restore.ps1"
 
@@ -75,3 +93,6 @@ if (-not $SkipIntegration) {
 }
 
 Write-Host "`n✓ Verify complete" -ForegroundColor Green
+ } finally {
+     Release-VerifyLock $lock
+ }

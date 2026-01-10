@@ -7,9 +7,6 @@
     <Project Path="src/Shalimar.Vite/Shalimar.Vite.csproj" />
     <Project Path="src/Shalimar.Templates/Shalimar.Templates.csproj" />
   </Folder>
-  <Folder Name="/tools/">
-    <Project Path="tools/Shalimar.Playwright.Tool/Shalimar.Playwright.Tool.csproj" />
-  </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/Shalimar.Runtime.Tests/Shalimar.Runtime.Tests.csproj" />
     <Project Path="tests/Shalimar.SourceGenerator.Tests/Shalimar.SourceGenerator.Tests.csproj" />

@@ -2,7 +2,7 @@
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-sdk_version="$(sed -n 's/.*\"version\"[[:space:]]*:[[:space:]]*\"\\([^\"]\\+\\)\".*/\\1/p' "${repo_root}/global.json" | head -1)"
+sdk_version="$(sed -nE 's/.*"version"[[:space:]]*:[[:space:]]*"([^"]+)".*/\1/p' "${repo_root}/global.json" | head -1)"
 
 die() { echo "Error: $*" >&2; exit 1; }
 need_cmd() { command -v "$1" >/dev/null 2>&1 || die "Missing prerequisite '$1' ($2)"; }

@@ -28,7 +28,6 @@ $RepoRoot = Join-Path $PSScriptRoot ".."
 $IntegrationAppDir = Join-Path $RepoRoot "src/Shalimar.IntegrationApp"
 $ArtifactsDir = Join-Path $RepoRoot "artifacts"
 $RuntimeIndexTs = Join-Path $RepoRoot "src/Shalimar.Runtime/ts/src/index.ts"
-$TemplateRuntimeDir = Join-Path $RepoRoot "src/Shalimar.Templates/templates/shalimar/Shared/runtime"
 
 Write-Host "╔══════════════════════════════════════╗" -ForegroundColor Cyan
 Write-Host "║  Shalimar Integration Setup          ║" -ForegroundColor Cyan
@@ -46,10 +45,6 @@ if (-not $SkipPack) {
             & "$PSScriptRoot/pack.ps1" -Version $Version
         } finally {
             Set-Content -Path $RuntimeIndexTs -Value $original
-            # Pack copies runtime TS into the template folder; restore the template runtime too so the repo stays clean.
-            if (Test-Path $TemplateRuntimeDir) { Remove-Item $TemplateRuntimeDir -Recurse -Force }
-            New-Item -ItemType Directory -Path $TemplateRuntimeDir -Force | Out-Null
-            Copy-Item "$RepoRoot/src/Shalimar.Runtime/ts/src/*" $TemplateRuntimeDir -Recurse
         }
     } else {
     & "$PSScriptRoot/pack.ps1" -Version $Version
