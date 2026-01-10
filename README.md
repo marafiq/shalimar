@@ -26,6 +26,17 @@ Open `https://localhost:5001` — you're running with HMR.
 
 This repo is designed to support TDD for **every component** (Runtime, SourceGenerator, RoslynAnalyzer, MSBuildTasks, Vite) with unit tests, plus an end-to-end **template → IntegrationApp → Playwright** pipeline.
 
+### Canonical workflow (do not reinvent)
+
+- **Bootstrap once per machine** (installs `pwsh`, the `.NET SDK` pinned by `global.json`, and `bun` into user-local folders):
+
+```bash
+bash ./scripts/bootstrap.sh
+export PATH="$HOME/.pwsh:$HOME/.dotnet:$HOME/.bun/bin:$PATH"
+```
+
+- **Then every time** (single source of truth for restore/build/test/integration/E2E):
+
 ### One command (Linux/macOS)
 
 ```bash
@@ -44,7 +55,11 @@ What it does:
 - **unit tests**: runs each unit test project under `tests/` (excludes Playwright by design)
 - **integration pipeline**: pack local NuGets → `dotnet new shalimar` → build IntegrationApp → run Playwright
 
-Playwright artifacts (console logs, page errors, and screenshot/HTML on failure) are written under `tests/TestResults/playwright/` (override via `SHALIMAR_TEST_ARTIFACTS`).
+Playwright artifacts:
+- **always**: `tests/TestResults/playwright/<TestName>/{console.log,page-errors.log}`
+- **on failure**: `failure.png`, `failure.html`, `exception.txt`
+
+Override root via `SHALIMAR_TEST_ARTIFACTS`.
 
 ### Proof that runtime TypeScript is delivered via the template (no manual copying into the generated app)
 

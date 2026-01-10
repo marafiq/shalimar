@@ -6,10 +6,3 @@
 export { useShalimarContext, ShalimarProvider } from './context'
 export { createRouter } from './router'
 export type { ShalimarContext, ShalimarProviderProps } from './types'
-
-
-// SHALIMAR_VERIFY_TS_PROPAGATION__20260110231444499
-
-
-
-
