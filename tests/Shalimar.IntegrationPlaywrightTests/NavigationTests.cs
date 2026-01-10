@@ -15,6 +15,7 @@ public class NavigationTests(IntegrationAppFixture fixture)
         {
             await page.GotoAsync(fixture.BaseUrl);
             await Assertions.Expect(page.Locator("h1")).ToContainTextAsync("Welcome");
+            await diag.CaptureSnapshotAsync(page, "home.png");
         }
         catch (Exception ex)
         {

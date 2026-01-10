@@ -2,6 +2,8 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { RouterProvider, createRouter } from '@tanstack/react-router'
 import { routeTree } from '@generated/routeTree.gen'
+import { Provider } from '@react-spectrum/s2'
+import './styles.css'
 
 // Get context from server-injected globals
 declare global {
@@ -27,7 +29,9 @@ if (!rootElement.innerHTML) {
     const root = createRoot(rootElement)
     root.render(
         <StrictMode>
-            <RouterProvider router={router} />
+            <Provider background="base">
+                <RouterProvider router={router} />
+            </Provider>
         </StrictMode>
     )
 }

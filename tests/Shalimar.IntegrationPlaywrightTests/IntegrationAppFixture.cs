@@ -131,6 +131,25 @@ public sealed class PlaywrightDiagnostics
         }
     }
 
+    public async Task CaptureSnapshotAsync(IPage page, string fileName)
+    {
+        var testDir = Path.Combine(_root, _testName);
+        Directory.CreateDirectory(testDir);
+
+        try
+        {
+            await page.ScreenshotAsync(new PageScreenshotOptions
+            {
+                Path = Path.Combine(testDir, fileName),
+                FullPage = true
+            });
+        }
+        catch
+        {
+            // Best effort.
+        }
+    }
+
     private static string Sanitize(string s)
     {
         foreach (var c in Path.GetInvalidFileNameChars())
