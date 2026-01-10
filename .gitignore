@@ -7,6 +7,23 @@
 ##
 ## Get latest from https://github.com/github/gitignore/blob/main/Dotnet.gitignore
 
+# macOS
+.DS_Store
+
+# Node/bun
+node_modules/
+bun.lockb
+
+# Generated IntegrationApp (created from template)
+src/Shalimar.IntegrationApp/
+
+# Vite build output
+wwwroot/dist/
+
+# TanStack Router generated (except in template)
+routeTree.gen.ts
+!src/Shalimar.Templates/templates/
+
 # Build results
 [Dd]ebug/
 [Dd]ebugPublic/

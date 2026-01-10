@@ -1,0 +1,16 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Shalimar.Runtime/Shalimar.Runtime.csproj" />
+    <Project Path="src/Shalimar.SourceGenerator/Shalimar.SourceGenerator.csproj" />
+    <Project Path="src/Shalimar.MSBuildTasks/Shalimar.MSBuildTasks.csproj" />
+    <Project Path="src/Shalimar.RoslynAnalyzer/Shalimar.RoslynAnalyzer.csproj" />
+    <Project Path="src/Shalimar.Vite/Shalimar.Vite.csproj" />
+    <Project Path="src/Shalimar.Templates/Shalimar.Templates.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Shalimar.Runtime.Tests/Shalimar.Runtime.Tests.csproj" />
+    <Project Path="tests/Shalimar.SourceGenerator.Tests/Shalimar.SourceGenerator.Tests.csproj" />
+    <Project Path="tests/Shalimar.RoslynAnalyzer.Tests/Shalimar.RoslynAnalyzer.Tests.csproj" />
+    <Project Path="tests/Shalimar.IntegrationPlaywrightTests/Shalimar.IntegrationPlaywrightTests.csproj" />
+  </Folder>
+</Solution>

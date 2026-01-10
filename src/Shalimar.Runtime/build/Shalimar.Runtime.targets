@@ -1,0 +1,17 @@
+<Project>
+  <PropertyGroup>
+    <ShalimarRuntimeSource>$(MSBuildThisFileDirectory)..\content\shalimar-runtime</ShalimarRuntimeSource>
+    <ShalimarRuntimeTarget>$(ProjectDir)node_modules\@shalimar\runtime</ShalimarRuntimeTarget>
+  </PropertyGroup>
+
+  <Target Name="ShalimarCopyRuntime" BeforeTargets="BeforeBuild" Condition="Exists('$(ShalimarRuntimeSource)')">
+    <MakeDir Directories="$(ShalimarRuntimeTarget)" Condition="!Exists('$(ShalimarRuntimeTarget)')" />
+    <ItemGroup>
+      <ShalimarRuntimeFiles Include="$(ShalimarRuntimeSource)\**\*" />
+    </ItemGroup>
+    <Copy SourceFiles="@(ShalimarRuntimeFiles)"
+          DestinationFiles="@(ShalimarRuntimeFiles->'$(ShalimarRuntimeTarget)\%(RecursiveDir)%(Filename)%(Extension)')"
+          SkipUnchangedFiles="true" />
+    <Message Importance="Normal" Text="Shalimar: Copied runtime to $(ShalimarRuntimeTarget)" />
+  </Target>
+</Project>

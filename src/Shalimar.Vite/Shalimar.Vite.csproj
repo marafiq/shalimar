@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <Description>Vite development server integration for Shalimar framework</Description>
+    <PackageId>Shalimar.Vite</PackageId>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Shalimar.Runtime\Shalimar.Runtime.csproj" />
+  </ItemGroup>
+</Project>

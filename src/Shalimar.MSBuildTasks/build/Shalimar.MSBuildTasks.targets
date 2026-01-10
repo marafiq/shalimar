@@ -1,0 +1,10 @@
+<Project>
+  <UsingTask TaskName="ExtractTypeScript" AssemblyFile="$(MSBuildThisFileDirectory)..\tasks\Shalimar.MSBuildTasks.dll" />
+
+  <!-- Run after CoreCompile when source generator has produced output -->
+  <Target Name="ShalimarExtractTypeScript" AfterTargets="CoreCompile">
+    <ExtractTypeScript
+      OutputDirectory="$(ProjectDir)Generated"
+      IntermediateDirectory="$(IntermediateOutputPath)" />
+  </Target>
+</Project>

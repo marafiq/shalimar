@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>netstandard2.0</TargetFramework>
+    <LangVersion>12</LangVersion>
+    <Description>MSBuild tasks for Shalimar framework</Description>
+    <PackageId>Shalimar.MSBuildTasks</PackageId>
+    <!-- MSBuild SDK packages have known vulnerabilities that don't affect our usage -->
+    <!-- NU5100: tasks folder is correct for MSBuild tasks, not lib -->
+    <NoWarn>$(NoWarn);NU1903;NU5100;NU5128</NoWarn>
+    <SuppressDependenciesWhenPacking>true</SuppressDependenciesWhenPacking>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Build.Framework" />
+    <PackageReference Include="Microsoft.Build.Utilities.Core" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="build\**\*" Pack="true" PackagePath="build" />
+    <None Include="$(OutputPath)\$(AssemblyName).dll" Pack="true" PackagePath="tasks" Visible="false" />
+  </ItemGroup>
+</Project>

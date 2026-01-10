@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <Description>Runtime library for Shalimar framework - ASP.NET Core extensions for server-rendered React apps</Description>
+    <PackageId>Shalimar.Runtime</PackageId>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <!-- Include MSBuild targets -->
+  <ItemGroup>
+    <None Include="build\**\*" Pack="true" PackagePath="build" />
+  </ItemGroup>
+</Project>

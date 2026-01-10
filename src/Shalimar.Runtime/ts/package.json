@@ -1,0 +1,21 @@
+{
+  "name": "@shalimar/runtime",
+  "version": "1.0.0-local",
+  "type": "module",
+  "main": "src/index.ts",
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "peerDependencies": {
+    "@tanstack/react-router": "^1.100.0",
+    "@tanstack/store": "^0.7.0",
+    "react": "^19.0.0"
+  },
+  "devDependencies": {
+    "@tanstack/react-router": "^1.100.0",
+    "@tanstack/store": "^0.7.0",
+    "@types/react": "^19.0.0",
+    "react": "^19.0.0",
+    "typescript": "^5.7.0"
+  }
+}

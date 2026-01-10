@@ -1,0 +1,12 @@
+{
+  "name": "shalimar",
+  "private": true,
+  "workspaces": ["src/Shalimar.Runtime/ts"],
+  "scripts": {
+    "typecheck": "bun run --cwd src/Shalimar.Runtime/ts typecheck",
+    "clean": "rm -rf artifacts"
+  },
+  "devDependencies": {
+    "typescript": "5.9.3"
+  }
+}

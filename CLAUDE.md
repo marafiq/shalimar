@@ -1,0 +1,135 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+## Project Overview
+
+Shalimar is a .NET 10 + React framework where the **server defines everything** and a **Roslyn source generator produces all TypeScript**. This is NOT an SPA - browser requests go to .NET first, then Vite assets for HMR only. No Node.js runtime in production.
+
+**Key Concept:** Write C# records, Minimal APIs, and FluentValidation → Shalimar generates typed hooks, Zod schemas, route trees, and form defaults.
+
+## Commands
+
+```bash
+# Restore dependencies
+./scripts/restore.ps1
+
+# Full integration setup: pack → clean → install template → create IntegrationApp → build → verify
+./scripts/integration.ps1
+
+# Quick iteration (skip packing, reuse existing artifacts)
+./scripts/integration.ps1 -SkipPack
+
+# Run all tests
+./scripts/test.ps1
+
+# Run only Playwright E2E tests
+./scripts/test.ps1 -Integration
+
+# Run only unit tests
+./scripts/test.ps1 -Unit
+
+# Run IntegrationApp manually
+cd src/Shalimar.IntegrationApp && dotnet run
+
+# Pack all NuGet packages to artifacts/
+./scripts/pack.ps1
+```
+
+## Architecture
+
+```
+Roslyn Source Generator
+         │
+         ├──► C#: Routes.g.cs
+         │
+         └──► TypeScript (embedded, extracted by MSBuild):
+              ├── shalimar-routes.g.ts
+              ├── shalimar-route-defs.g.ts
+              ├── shalimar-types.g.ts
+              ├── shalimar-zod-schemas.g.ts
+              ├── shalimar-defaults.g.ts
+              ├── shalimar-hooks.g.ts
+              ├── shalimar-mutations.g.ts
+              └── shalimar-subscriptions.g.ts
+```
+
+**Build-time generation:**
+- `dotnet build` → Roslyn generates C# routes + TypeScript files in `Generated/`
+- `bun run build` → TanStack Router plugin generates `routeTree.gen.ts` + Vite outputs hashed assets to `wwwroot/dist/`
+
+## Project Structure
+
+| Project | Purpose | Target |
+|---------|---------|--------|
+| `Shalimar.Runtime` | Unified runtime: ASP.NET Core extensions + TypeScript source | net10.0 |
+| `Shalimar.SourceGenerator` | Roslyn code generation | netstandard2.0 |
+| `Shalimar.MSBuildTasks` | Build-time TypeScript extraction | netstandard2.0 |
+| `Shalimar.RoslynAnalyzer` | Compile-time diagnostics | netstandard2.0 |
+| `Shalimar.Vite` | Vite dev server integration | net10.0 |
+| `Shalimar.Templates` | `dotnet new shalimar` template | NuGet template |
+| `Shalimar.IntegrationApp` | Test app created from template (gitignored) | net10.0 |
+
+**Roslyn Components (netstandard2.0):** SourceGenerator, RoslynAnalyzer, MSBuildTasks must target netstandard2.0 with LangVersion 12 for Roslyn compatibility.
+
+## Testing
+
+**Unit tests:** xUnit with Verify.Xunit for snapshot testing generated code
+```bash
+dotnet test --filter "Category!=Integration"
+```
+
+**E2E tests:** Playwright tests validate IntegrationApp
+```bash
+dotnet test tests/Shalimar.IntegrationPlaywrightTests --filter "Category=Integration"
+```
+
+**Key E2E validations:**
+- `Shell_Contains_Context` - `__SHALIMAR_CONTEXT__` injection
+- `Shell_Contains_Version` - `__SHALIMAR_VERSION__` present
+- `Shell_Has_Hashed_Assets` - `/dist/assets/` in HTML
+- `Home_Renders` - `<h1>Welcome` visible
+- `No_Console_Errors` - Zero browser console errors
+
+**Prerequisites:** Run `./scripts/integration.ps1` before Playwright tests to create IntegrationApp.
+
+## Delivery Model
+
+All packages delivered via single NuGet template:
+```
+Shalimar.Templates.nupkg
+├── Shalimar.Runtime (dependency)
+├── Shalimar.SourceGenerator (dependency)
+├── Shalimar.MSBuildTasks (dependency)
+├── Shalimar.RoslynAnalyzer (dependency)
+├── Shalimar.Vite (dependency)
+└── Shared/runtime/ (TypeScript source bundled by Vite)
+```
+
+End user installation:
+```bash
+dotnet new install Shalimar.Templates
+dotnet new shalimar -n MyApp
+cd MyApp
+dotnet run
+```
+
+## Version Pinning (January 2026)
+
+- .NET SDK: 10.0.101 (via global.json)
+- C#: 14
+- React: 19.2.3
+- TanStack Router: 1.146.2
+- Vite: 7.3.1
+- TypeScript: 5.9.3
+- Playwright: 1.57.0
+- bun: latest
+
+## Troubleshooting
+
+| Problem | Fix |
+|---------|-----|
+| Old NuGet packages cached | Delete `~/.nuget/packages/shalimar*` |
+| Generated TypeScript missing | Check `dotnet build` output for errors |
+| routeTree.gen.ts missing | Run `bun run build` in IntegrationApp |
+| Playwright tests fail | Run `./scripts/integration.ps1` first |
