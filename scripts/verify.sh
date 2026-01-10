@@ -21,6 +21,14 @@ need_cmd dotnet "Install the .NET SDK pinned by global.json."
 need_cmd bun "Install bun (https://bun.sh/) for Vite/TS tooling."
 need_cmd curl "Install curl (used for readiness checks)."
 
+# Prevent concurrent runs (they share artifacts/ and template install state).
+lock_dir="/tmp/shalimar-verify.lock"
+if ! mkdir "${lock_dir}" 2>/dev/null; then
+  die "Another verify run is already in progress (lock: ${lock_dir})."
+fi
+cleanup_lock() { rmdir "${lock_dir}" >/dev/null 2>&1 || true; }
+trap cleanup_lock EXIT
+
 skip_integration="false"
 skip_e2e="false"
 version="1.0.0-local"
