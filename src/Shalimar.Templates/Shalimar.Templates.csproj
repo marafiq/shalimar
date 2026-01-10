@@ -13,6 +13,10 @@
 
   <ItemGroup>
     <Content Include="templates\**\*" Exclude="templates\**\bin\**;templates\**\obj\**;templates\**\node_modules\**\*.map" />
+    <!-- Single source of truth: pack runtime TS directly from Shalimar.Runtime -->
+    <Content Include="..\Shalimar.Runtime\ts\src\**\*"
+             Pack="true"
+             PackagePath="content/templates/shalimar/Shared/runtime/%(RecursiveDir)%(Filename)%(Extension)" />
     <Compile Remove="**\*" />
   </ItemGroup>
 </Project>

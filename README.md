@@ -22,6 +22,88 @@ Open `https://localhost:5001` — you're running with HMR.
 
 ---
 
+## Zero-step restore/build/test (framework repo)
+
+This repo is designed to support TDD for **every component** (Runtime, SourceGenerator, RoslynAnalyzer, MSBuildTasks, Vite) with unit tests, plus an end-to-end **template → IntegrationApp → Playwright** pipeline.
+
+### Canonical workflow (do not reinvent)
+
+- **Bootstrap once per machine** (installs `pwsh`, the `.NET SDK` pinned by `global.json`, and `bun` into user-local folders):
+
+```bash
+bash ./scripts/bootstrap.sh
+export PATH="$HOME/.pwsh:$HOME/.dotnet:$HOME/.bun/bin:$PATH"
+```
+
+- **Then every time** (single source of truth for restore/build/test/integration/E2E):
+
+### One command (Linux/macOS)
+
+```bash
+bash ./scripts/verify.sh
+```
+
+### One command (PowerShell)
+
+```powershell
+./scripts/verify.ps1 -VerifyTsPropagation
+```
+
+What it does:
+- **restore**: `dotnet restore` + `bun install`
+- **build**: `dotnet build`
+- **unit tests**: runs each unit test project under `tests/` (excludes Playwright by design)
+- **integration pipeline**: pack local NuGets → `dotnet new shalimar` → build IntegrationApp → run Playwright
+
+Playwright artifacts:
+- **always**: `tests/TestResults/playwright/<TestName>/{console.log,page-errors.log}`
+- **on failure**: `failure.png`, `failure.html`, `exception.txt`
+
+Override root via `SHALIMAR_TEST_ARTIFACTS`.
+
+### Proof that runtime TypeScript is delivered via the template (no manual copying into the generated app)
+
+`verify` includes an explicit proof step:
+- It temporarily appends a unique marker comment to `src/Shalimar.Runtime/ts/src/index.ts`
+- Packs the template
+- Runs `dotnet new shalimar`
+- Verifies the marker exists in the generated app at `Shared/runtime/index.ts`
+- Restores the original `index.ts` (no repo changes left behind)
+
+---
+
+## Two developer experiences
+
+### Framework developers (local NuGet workflow)
+
+- Build and pack local packages:
+
+```bash
+pwsh ./scripts/pack.ps1 -Version 1.0.0-local
+```
+
+- Use the local `artifacts/` folder as a package source (the integration pipeline generates an app-local `nuget.config` that points at `artifacts/`).
+
+### End consumers (`dotnet new shalimar`)
+
+- Install the template (from NuGet, or from a local `.nupkg` during development) and create an app:
+
+```bash
+dotnet new install Shalimar.Templates
+dotnet new shalimar -n MyApp
+```
+
+---
+
+## IntegrationApp dev loop (HMR)
+
+For framework development, the ideal local loop is:
+- keep the app running in **Development**
+- keep Vite running with **HMR**
+- iterate on framework packages, then re-run `scripts/integration.ps1 -SkipPack` (or `scripts/verify` if you want a full reset).
+
+---
+
 ## Features
 
 **Zero Magic Strings**  

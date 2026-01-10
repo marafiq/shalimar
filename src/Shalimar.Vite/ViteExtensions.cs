@@ -91,39 +91,13 @@ public class ViteDevServerMiddleware
         var path = context.Request.Path.Value ?? "";
 
         // Check if this request should be proxied to Vite
-        if (ShouldProxyToVite(path))
+        if (ViteProxyDecision.ShouldProxyToVite(path, _options))
         {
             await ProxyToVite(context);
             return;
         }
 
         await _next(context);
-    }
-
-    private bool ShouldProxyToVite(string path)
-    {
-        // Proxy HMR websocket
-        if (path == "/__vite_ping")
-            return true;
-
-        // Proxy known Vite paths
-        foreach (var proxyPath in _options.ProxyPaths)
-        {
-            if (path.StartsWith(proxyPath, StringComparison.OrdinalIgnoreCase))
-                return true;
-        }
-
-        // Proxy .tsx, .ts, .jsx, .js files that aren't in wwwroot
-        if (path.EndsWith(".tsx") || path.EndsWith(".ts") ||
-            path.EndsWith(".jsx") || path.EndsWith(".js") ||
-            path.EndsWith(".css"))
-        {
-            // Don't proxy files from /dist (production builds)
-            if (!path.StartsWith("/dist/"))
-                return true;
-        }
-
-        return false;
     }
 
     private async Task ProxyToVite(HttpContext context)
@@ -183,5 +157,35 @@ public class ViteDevServerMiddleware
             await context.Response.WriteAsync(
                 "Vite dev server is not running. Start it with 'bun run dev' or 'npm run dev'.");
         }
+    }
+}
+
+internal static class ViteProxyDecision
+{
+    internal static bool ShouldProxyToVite(string path, ViteOptions options)
+    {
+        // Proxy HMR websocket
+        if (string.Equals(path, "/__vite_ping", StringComparison.OrdinalIgnoreCase))
+            return true;
+
+        // Proxy known Vite paths
+        foreach (var proxyPath in options.ProxyPaths)
+        {
+            if (path.StartsWith(proxyPath, StringComparison.OrdinalIgnoreCase))
+                return true;
+        }
+
+        // Proxy .tsx, .ts, .jsx, .js, .css files that aren't in /dist (production builds)
+        if (path.EndsWith(".tsx", StringComparison.OrdinalIgnoreCase) ||
+            path.EndsWith(".ts", StringComparison.OrdinalIgnoreCase) ||
+            path.EndsWith(".jsx", StringComparison.OrdinalIgnoreCase) ||
+            path.EndsWith(".js", StringComparison.OrdinalIgnoreCase) ||
+            path.EndsWith(".css", StringComparison.OrdinalIgnoreCase))
+        {
+            if (!path.StartsWith("/dist/", StringComparison.OrdinalIgnoreCase))
+                return true;
+        }
+
+        return false;
     }
 }

@@ -1,4 +1,6 @@
 using Microsoft.Build.Framework;
+using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Text.RegularExpressions;
 using MSBuildTask = Microsoft.Build.Utilities.Task;
@@ -48,12 +50,10 @@ public class ExtractTypeScript : MSBuildTask
                 foreach (var csFile in Directory.GetFiles(generatorOutputDir, "*.cs"))
                 {
                     var content = File.ReadAllText(csFile);
-                    var matches = TsBlockRegex.Matches(content);
-
-                    foreach (Match match in matches)
+                    foreach (var block in ParseTypeScriptBlocks(content))
                     {
-                        var filename = match.Groups["filename"].Value;
-                        var tsContent = match.Groups["content"].Value.Trim();
+                        var filename = block.FileName;
+                        var tsContent = block.Content;
                         var targetPath = Path.Combine(OutputDirectory, filename);
 
                         // Only write if content changed
@@ -86,12 +86,10 @@ public class ExtractTypeScript : MSBuildTask
                 foreach (var csFile in Directory.GetFiles(altPath, "Shalimar*.g.cs", SearchOption.AllDirectories))
                 {
                     var content = File.ReadAllText(csFile);
-                    var matches = TsBlockRegex.Matches(content);
-
-                    foreach (Match match in matches)
+                    foreach (var block in ParseTypeScriptBlocks(content))
                     {
-                        var filename = match.Groups["filename"].Value;
-                        var tsContent = match.Groups["content"].Value.Trim();
+                        var filename = block.FileName;
+                        var tsContent = block.Content;
                         var targetPath = Path.Combine(OutputDirectory, filename);
 
                         if (!File.Exists(targetPath) || File.ReadAllText(targetPath) != tsContent)
@@ -121,5 +119,30 @@ public class ExtractTypeScript : MSBuildTask
             Log.LogError("Shalimar: Failed to extract TypeScript: {0}", ex.Message);
             return false;
         }
+    }
+
+    internal static IReadOnlyList<(string FileName, string Content)> ParseTypeScriptBlocks(string csContent)
+    {
+        if (string.IsNullOrEmpty(csContent))
+            return Array.Empty<(string, string)>();
+
+        // Normalize CRLF to LF to keep the regex simple and deterministic.
+        var normalized = csContent.Replace("\r\n", "\n");
+
+        var matches = TsBlockRegex.Matches(normalized);
+        if (matches.Count == 0)
+            return Array.Empty<(string, string)>();
+
+        var blocks = new List<(string FileName, string Content)>(matches.Count);
+        foreach (Match match in matches)
+        {
+            var filename = match.Groups["filename"].Value;
+            var tsContent = match.Groups["content"].Value.Trim();
+
+            if (!string.IsNullOrWhiteSpace(filename))
+                blocks.Add((filename, tsContent));
+        }
+
+        return blocks;
     }
 }
