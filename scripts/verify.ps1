@@ -22,7 +22,8 @@ param(
     [switch]$SkipE2E,
     [string]$Version = "1.0.0-local",
     [ValidateSet("Debug", "Release")]
-    [string]$Configuration = "Debug"
+    [string]$Configuration = "Debug",
+    [switch]$VerifyTsPropagation
 )
 
 $ErrorActionPreference = "Stop"
@@ -55,10 +56,19 @@ Write-Host "`n[3/4] Unit tests" -ForegroundColor Cyan
 
 if (-not $SkipIntegration) {
     Write-Host "`n[4/4] Integration pipeline (template -> IntegrationApp)" -ForegroundColor Cyan
+    $marker = if ($VerifyTsPropagation) { "SHALIMAR_VERIFY_TS_PROPAGATION__$(Get-Date -Format 'yyyyMMddHHmmssfff')" } else { $null }
     if ($SkipE2E) {
-        & "$PSScriptRoot/integration.ps1" -Version $Version -SkipTests
+        if ($marker) {
+            & "$PSScriptRoot/integration.ps1" -Version $Version -SkipTests -VerifyTsMarker $marker
+        } else {
+            & "$PSScriptRoot/integration.ps1" -Version $Version -SkipTests
+        }
     } else {
-        & "$PSScriptRoot/integration.ps1" -Version $Version
+        if ($marker) {
+            & "$PSScriptRoot/integration.ps1" -Version $Version -VerifyTsMarker $marker
+        } else {
+            & "$PSScriptRoot/integration.ps1" -Version $Version
+        }
     }
 } else {
     Write-Host "`n[4/4] Skipping integration pipeline (-SkipIntegration)" -ForegroundColor Yellow

@@ -94,6 +94,19 @@ runtime_ts="${repo_root}/src/Shalimar.Runtime/ts"
 template_runtime="${repo_root}/src/Shalimar.Templates/templates/shalimar/Shared/runtime"
 integration_app="${repo_root}/src/Shalimar.IntegrationApp"
 
+echo "  Proving TS propagation (temporary marker)..."
+marker="SHALIMAR_VERIFY_TS_PROPAGATION__$(date +%s)"
+runtime_index="${runtime_ts}/src/index.ts"
+runtime_index_bak="${runtime_index}.bak.verify"
+cp "${runtime_index}" "${runtime_index_bak}"
+cleanup_ts_marker() {
+  if [ -f "${runtime_index_bak}" ]; then
+    mv "${runtime_index_bak}" "${runtime_index}"
+  fi
+}
+trap cleanup_ts_marker EXIT
+printf "\n// %s\n" "${marker}" >> "${runtime_index}"
+
 echo "  Packing ${version}..."
 rm -rf "${artifacts}"
 mkdir -p "${artifacts}"
@@ -101,6 +114,9 @@ mkdir -p "${artifacts}"
 rm -rf "${template_runtime}"
 mkdir -p "${template_runtime}"
 cp -R "${runtime_ts}/src/"* "${template_runtime}/"
+
+# Proof: template runtime must now contain the marker (this is the packaging-time delivery mechanism).
+grep -F "${marker}" "${template_runtime}/index.ts" >/dev/null || die "Template runtime did not include runtime TS marker"
 
 dotnet build "${repo_root}/Shalimar.slnx" -c Release /p:Version="${version}"
 
@@ -134,6 +150,9 @@ dotnet new install "${pkgs[0]}" --force
 echo "  Creating IntegrationApp..."
 (cd "${repo_root}/src" && dotnet new shalimar -n Shalimar.IntegrationApp)
 
+echo "  Verifying generated app received runtime TS from template..."
+grep -F "${marker}" "${integration_app}/Shared/runtime/index.ts" >/dev/null || die "Generated app is missing runtime TS marker under Shared/runtime (template delivery failed)"
+
 cat > "${integration_app}/nuget.config" <<EOF
 <?xml version="1.0" encoding="utf-8"?>
 <configuration>
@@ -162,14 +181,12 @@ fi
 
 echo "  Ensuring Playwright browsers are installed..."
 dotnet build "${repo_root}/tests/Shalimar.IntegrationPlaywrightTests"
-shopt -s globstar nullglob
-pwsh_scripts=( "${repo_root}"/tests/Shalimar.IntegrationPlaywrightTests/bin/**/playwright.sh )
-shopt -u globstar nullglob
-if [ ${#pwsh_scripts[@]} -gt 0 ]; then
-  "${pwsh_scripts[0]}" install chromium
-else
-  echo "  Warning: playwright.sh not found; attempting tests without explicit install."
+tools_dir="${repo_root}/.tools"
+mkdir -p "${tools_dir}"
+if [ ! -x "${tools_dir}/playwright" ]; then
+  dotnet tool install --tool-path "${tools_dir}" Microsoft.Playwright.CLI --version 1.57.0
 fi
+${tools_dir}/playwright install chromium
 
 echo "  Starting IntegrationApp on port ${port}..."
 log_dir="${integration_app}/TestResults"

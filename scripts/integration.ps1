@@ -19,13 +19,15 @@
 param(
     [switch]$SkipPack,
     [switch]$SkipTests,
-    [string]$Version = "1.0.0-local"
+    [string]$Version = "1.0.0-local",
+    [string]$VerifyTsMarker
 )
 $ErrorActionPreference = "Stop"
 
 $RepoRoot = Join-Path $PSScriptRoot ".."
 $IntegrationAppDir = Join-Path $RepoRoot "src/Shalimar.IntegrationApp"
 $ArtifactsDir = Join-Path $RepoRoot "artifacts"
+$RuntimeIndexTs = Join-Path $RepoRoot "src/Shalimar.Runtime/ts/src/index.ts"
 
 Write-Host "╔══════════════════════════════════════╗" -ForegroundColor Cyan
 Write-Host "║  Shalimar Integration Setup          ║" -ForegroundColor Cyan
@@ -34,7 +36,19 @@ Write-Host "╚═════════════════════�
 # Step 1: Pack
 if (-not $SkipPack) {
     Write-Host "`n[1/6] Packing..." -ForegroundColor Cyan
+
+    if ($VerifyTsMarker) {
+        Write-Host "  Adding TS marker to runtime (temporary): $VerifyTsMarker" -ForegroundColor Cyan
+        $original = Get-Content $RuntimeIndexTs -Raw
+        try {
+            Add-Content -Path $RuntimeIndexTs -Value "`n// $VerifyTsMarker`n"
+            & "$PSScriptRoot/pack.ps1" -Version $Version
+        } finally {
+            Set-Content -Path $RuntimeIndexTs -Value $original
+        }
+    } else {
     & "$PSScriptRoot/pack.ps1" -Version $Version
+    }
 } else {
     Write-Host "`n[1/6] Skipping pack (using existing artifacts)..." -ForegroundColor Yellow
     if (-not (Test-Path "$ArtifactsDir/Shalimar.Templates.*.nupkg")) {
@@ -76,6 +90,16 @@ Push-Location (Join-Path $RepoRoot "src")
 dotnet new shalimar -n Shalimar.IntegrationApp
 if ($LASTEXITCODE -ne 0) { Pop-Location; throw "dotnet new shalimar failed" }
 Pop-Location
+
+if ($VerifyTsMarker) {
+    $deliveredPath = Join-Path $IntegrationAppDir "Shared/runtime/index.ts"
+    if (-not (Test-Path $deliveredPath)) { throw "Missing runtime TS in generated app: Shared/runtime/index.ts" }
+    $delivered = Get-Content $deliveredPath -Raw
+    if ($delivered -notmatch [Regex]::Escape($VerifyTsMarker)) {
+        throw "TS marker was not delivered into generated app runtime: $VerifyTsMarker"
+    }
+    Write-Host "  ✓ Verified TS marker delivered via template to Shared/runtime/index.ts" -ForegroundColor Green
+}
 
 # Add local nuget.config for IntegrationApp
 @"

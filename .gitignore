@@ -65,6 +65,9 @@ CodeCoverage/
 [Tt]est[Rr]esult*/
 [Bb]uild[Ll]og.*
 
+# Local dotnet tools (Playwright CLI)
+.tools/
+
 # NUnit
 *.VisualState.xml
 TestResult.xml
