@@ -1,0 +1,10 @@
+@import "tailwindcss";
+@import "@react-spectrum/s2/page.css";
+
+/* Tailwind + Spectrum need the root to fill the viewport. */
+html,
+body,
+#root {
+  height: 100%;
+}
+
