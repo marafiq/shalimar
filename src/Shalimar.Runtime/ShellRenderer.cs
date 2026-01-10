@@ -79,13 +79,16 @@ public class ShellRenderer
 
         // In production, read from manifest
         var manifest = await LoadManifestAsync();
-        if (manifest != null && manifest.TryGetValue(entryPoint, out var entry))
-        {
-            return $"/dist/{entry.File}";
-        }
+        if (manifest == null)
+            throw new InvalidOperationException(
+                $"Shalimar: Vite manifest not found at '{Path.Combine(_environment.WebRootPath, "dist", ".vite", "manifest.json")}'. " +
+                "Run a Vite build to produce wwwroot/dist (e.g. `bun run build`).");
 
-        // Fallback
-        return "/dist/assets/main.js";
+        if (!manifest.TryGetValue(entryPoint, out var entry) || string.IsNullOrWhiteSpace(entry.File))
+            throw new InvalidOperationException(
+                $"Shalimar: Vite manifest missing entry '{entryPoint}'. Ensure Vite is configured with build.rollupOptions.input = '{entryPoint}'.");
+
+        return $"/dist/{entry.File}";
     }
 
     /// <summary>
