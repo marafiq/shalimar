@@ -26,10 +26,20 @@ $runIntegration = $Integration -or (-not $Unit -and -not $Integration)
 
 if ($runUnit) {
     Write-Host "Running unit tests..." -ForegroundColor Cyan
-    $args = @("$RepoRoot/Shalimar.slnx", "--filter", "Category!=Integration")
-    if ($NoBuild) { $args += "--no-build" }
-    dotnet test @args
-    if ($LASTEXITCODE -ne 0) { throw "Unit tests failed" }
+    $unitProjects = @(
+        "$RepoRoot/tests/Shalimar.Runtime.Tests/Shalimar.Runtime.Tests.csproj",
+        "$RepoRoot/tests/Shalimar.SourceGenerator.Tests/Shalimar.SourceGenerator.Tests.csproj",
+        "$RepoRoot/tests/Shalimar.RoslynAnalyzer.Tests/Shalimar.RoslynAnalyzer.Tests.csproj",
+        "$RepoRoot/tests/Shalimar.MSBuildTasks.Tests/Shalimar.MSBuildTasks.Tests.csproj",
+        "$RepoRoot/tests/Shalimar.Vite.Tests/Shalimar.Vite.Tests.csproj"
+    )
+
+    foreach ($project in $unitProjects) {
+        $args = @($project)
+        if ($NoBuild) { $args += "--no-build" }
+        dotnet test @args
+        if ($LASTEXITCODE -ne 0) { throw "Unit tests failed: $project" }
+    }
 }
 
 if ($runIntegration) {
