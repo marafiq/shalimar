@@ -22,6 +22,55 @@ Open `https://localhost:5001` — you're running with HMR.
 
 ---
 
+## Zero-step restore/build/test (framework repo)
+
+This repo is designed to support TDD for **every component** (Runtime, SourceGenerator, RoslynAnalyzer, MSBuildTasks, Vite) with unit tests, plus an end-to-end **template → IntegrationApp → Playwright** pipeline.
+
+### One command (Linux/macOS)
+
+```bash
+bash ./scripts/verify.sh
+```
+
+### One command (PowerShell)
+
+```powershell
+./scripts/verify.ps1
+```
+
+What it does:
+- **restore**: `dotnet restore` + `bun install`
+- **build**: `dotnet build`
+- **unit tests**: `dotnet test --filter "Category!=Integration"`
+- **integration pipeline**: pack local NuGets → `dotnet new shalimar` → build IntegrationApp → run Playwright
+
+Playwright artifacts (console logs, page errors, and screenshot/HTML on failure) are written under `tests/TestResults/playwright/` (override via `SHALIMAR_TEST_ARTIFACTS`).
+
+---
+
+## Two developer experiences
+
+### Framework developers (local NuGet workflow)
+
+- Build and pack local packages:
+
+```bash
+pwsh ./scripts/pack.ps1 -Version 1.0.0-local
+```
+
+- Use the local `artifacts/` folder as a package source (the integration pipeline generates an app-local `nuget.config` that points at `artifacts/`).
+
+### End consumers (`dotnet new shalimar`)
+
+- Install the template (from NuGet, or from a local `.nupkg` during development) and create an app:
+
+```bash
+dotnet new install Shalimar.Templates
+dotnet new shalimar -n MyApp
+```
+
+---
+
 ## Features
 
 **Zero Magic Strings**  

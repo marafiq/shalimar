@@ -12,7 +12,8 @@
 param(
     [switch]$Unit,
     [switch]$Integration,
-    [int]$Port = 5099
+    [int]$Port = 5099,
+    [switch]$NoBuild
 )
 $ErrorActionPreference = "Stop"
 
@@ -25,7 +26,9 @@ $runIntegration = $Integration -or (-not $Unit -and -not $Integration)
 
 if ($runUnit) {
     Write-Host "Running unit tests..." -ForegroundColor Cyan
-    dotnet test "$RepoRoot/Shalimar.slnx" --filter "Category!=Integration" --no-build
+    $args = @("$RepoRoot/Shalimar.slnx", "--filter", "Category!=Integration")
+    if ($NoBuild) { $args += "--no-build" }
+    dotnet test @args
     if ($LASTEXITCODE -ne 0) { throw "Unit tests failed" }
 }
 
@@ -40,10 +43,10 @@ if ($runIntegration) {
     Write-Host "  Ensuring Playwright browsers are installed..."
     $playwrightDir = Join-Path $RepoRoot "tests/Shalimar.IntegrationPlaywrightTests"
     Push-Location $playwrightDir
-    dotnet build --no-restore 2>$null
-    $pwScript = Join-Path $playwrightDir "bin/Debug/net10.0/playwright.ps1"
-    if (Test-Path $pwScript) {
-        & $pwScript install chromium 2>$null
+    dotnet build
+    $pwScript = Get-ChildItem $playwrightDir -Recurse -Filter "playwright.ps1" -ErrorAction SilentlyContinue | Select-Object -First 1
+    if ($pwScript) {
+        & $pwScript.FullName install chromium
     }
     Pop-Location
 
@@ -88,7 +91,9 @@ if ($runIntegration) {
 
     try {
         $env:INTEGRATION_APP_URL = "http://localhost:$Port"
-        dotnet test "$RepoRoot/tests/Shalimar.IntegrationPlaywrightTests" --filter "Category=Integration" --no-build
+        $args = @("$RepoRoot/tests/Shalimar.IntegrationPlaywrightTests", "--filter", "Category=Integration")
+        if ($NoBuild) { $args += "--no-build" }
+        dotnet test @args
         $testResult = $LASTEXITCODE
     } finally {
         Write-Host "  Stopping IntegrationApp..."
