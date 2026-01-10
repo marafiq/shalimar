@@ -25,10 +25,33 @@ public class IntegrationAppFixture : IAsyncLifetime
 
         var context = await _browser!.NewContextAsync(new BrowserNewContextOptions
         {
-            BaseURL = BaseUrl
+            BaseURL = BaseUrl,
+            Locale = "en-US",
+            ColorScheme = ColorScheme.Light,
+            ReducedMotion = ReducedMotion.Reduce,
+            DeviceScaleFactor = 1,
+            ViewportSize = new ViewportSize
+            {
+                Width = 1280,
+                Height = 720
+            }
         });
 
         var page = await context.NewPageAsync();
+        await page.AddStyleTagAsync(new PageAddStyleTagOptions
+        {
+            Content = """
+                      *,
+                      *::before,
+                      *::after {
+                        animation-duration: 0s !important;
+                        animation-delay: 0s !important;
+                        transition-duration: 0s !important;
+                        transition-delay: 0s !important;
+                        caret-color: transparent !important;
+                      }
+                      """
+        });
         var diagnostics = new PlaywrightDiagnostics(ArtifactsRoot, testName);
         diagnostics.Attach(page);
 
@@ -155,5 +178,66 @@ public sealed class PlaywrightDiagnostics
         foreach (var c in Path.GetInvalidFileNameChars())
             s = s.Replace(c, '_');
         return s;
+    }
+}
+
+public static class SnapshotAssertions
+{
+    public static async Task AssertMatchesAsync(IPage page, PlaywrightDiagnostics diag, string testName, string snapshotFileName)
+    {
+        var repoRoot = FindRepoRoot();
+        var snapshotsDir = Path.Combine(repoRoot, "tests", "Shalimar.IntegrationPlaywrightTests", "Snapshots");
+        Directory.CreateDirectory(snapshotsDir);
+
+        var baselinePath = Path.Combine(snapshotsDir, snapshotFileName);
+        var update = string.Equals(Environment.GetEnvironmentVariable("SHALIMAR_UPDATE_SNAPSHOTS"), "1", StringComparison.OrdinalIgnoreCase) ||
+                     string.Equals(Environment.GetEnvironmentVariable("SHALIMAR_UPDATE_SNAPSHOTS"), "true", StringComparison.OrdinalIgnoreCase);
+
+        var actualBytes = await page.ScreenshotAsync(new PageScreenshotOptions { FullPage = true });
+
+        if (!File.Exists(baselinePath) || update)
+        {
+            await File.WriteAllBytesAsync(baselinePath, actualBytes);
+            return;
+        }
+
+        var expectedBytes = await File.ReadAllBytesAsync(baselinePath);
+        if (actualBytes.SequenceEqual(expectedBytes))
+            return;
+
+        await diag.CaptureSnapshotAsync(page, "actual.png");
+        throw new Xunit.Sdk.XunitException(
+            $"Snapshot mismatch for '{testName}'.\n" +
+            $"Baseline: {baselinePath}\n" +
+            $"Actual:   {Path.Combine(diagRoot(diag, testName), "actual.png")}\n" +
+            "To update snapshots, run with SHALIMAR_UPDATE_SNAPSHOTS=1.");
+    }
+
+    private static string FindRepoRoot()
+    {
+        var dir = new DirectoryInfo(AppContext.BaseDirectory);
+        for (var i = 0; i < 12 && dir != null; i++)
+        {
+            if (Directory.Exists(Path.Combine(dir.FullName, ".git")))
+                return dir.FullName;
+            dir = dir.Parent;
+        }
+
+        // Fall back to current directory (works when tests are run from repo root).
+        return Directory.GetCurrentDirectory();
+    }
+
+    private static string diagRoot(PlaywrightDiagnostics diag, string testName)
+    {
+        // Mirror PlaywrightDiagnostics directory structure.
+        var root = (string)typeof(PlaywrightDiagnostics)
+            .GetField("_root", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!
+            .GetValue(diag)!;
+
+        var sanitized = (string)typeof(PlaywrightDiagnostics)
+            .GetMethod("Sanitize", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static)!
+            .Invoke(null, new object[] { testName })!;
+
+        return Path.Combine(root, sanitized);
     }
 }
