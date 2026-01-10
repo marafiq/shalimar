@@ -36,6 +36,9 @@ public class ShellRenderer
     {
         var scriptPath = await GetMainScriptPathAsync();
         var cssLinks = await GetCssLinksAsync();
+        var devHmrClient = _environment.IsDevelopment()
+            ? """<script type="module" src="/@vite/client"></script>"""
+            : "";
 
         var contextJson = JsonSerializer.Serialize(context, _jsonOptions);
         var propsJson = JsonSerializer.Serialize(props, _jsonOptions);
@@ -56,6 +59,7 @@ public class ShellRenderer
                     window.__SHALIMAR_VERSION__ = "{EscapeJs(version)}";
                     window.__SHALIMAR_PROPS__ = {propsJson};
                 </script>
+                {devHmrClient}
                 <script type="module" src="{scriptPath}"></script>
             </body>
             </html>
@@ -69,8 +73,8 @@ public class ShellRenderer
     {
         if (_environment.IsDevelopment())
         {
-            // In development, use Vite dev server
-            return $"http://localhost:5173/{entryPoint}";
+            // In development, request local paths that can be proxied to Vite for HMR.
+            return $"/{entryPoint}";
         }
 
         // In production, read from manifest
@@ -121,7 +125,15 @@ public class ShellRenderer
                 return _manifestEntries;
 
             _cachedManifest = json;
-            _manifestEntries = JsonSerializer.Deserialize<Dictionary<string, ViteManifestEntry>>(json);
+            // Vite manifest JSON uses camelCase (e.g. { "file": "assets/..." }).
+            // Ensure we deserialize using matching options; otherwise `File` stays empty and we emit `/dist/`.
+            _manifestEntries = JsonSerializer.Deserialize<Dictionary<string, ViteManifestEntry>>(
+                json,
+                new JsonSerializerOptions
+                {
+                    PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+                    PropertyNameCaseInsensitive = true
+                });
             return _manifestEntries;
         }
         catch

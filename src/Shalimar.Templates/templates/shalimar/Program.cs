@@ -1,5 +1,6 @@
 using ShalimarApp;
 using Shalimar;
+using Shalimar.Vite;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -12,8 +13,12 @@ builder.Services.AddShalimar<AppContextModel>(options =>
     };
 });
 
+// Enable Vite proxying + HMR in Development
+builder.Services.AddShalimarVite();
+
 var app = builder.Build();
 app.UseShalimar();
+app.UseShalimarVite(app.Environment);
 
 // Serve the shell HTML for the home route
 app.MapGet("/", async (HttpContext http) =>

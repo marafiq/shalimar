@@ -23,7 +23,7 @@ param(
     [string]$Version = "1.0.0-local",
     [ValidateSet("Debug", "Release")]
     [string]$Configuration = "Debug",
-    [switch]$VerifyTsPropagation
+    [switch]$VerifyTsPropagation = $true
 )
 
 $ErrorActionPreference = "Stop"

@@ -35,16 +35,25 @@ bash ./scripts/verify.sh
 ### One command (PowerShell)
 
 ```powershell
-./scripts/verify.ps1
+./scripts/verify.ps1 -VerifyTsPropagation
 ```
 
 What it does:
 - **restore**: `dotnet restore` + `bun install`
 - **build**: `dotnet build`
-- **unit tests**: `dotnet test --filter "Category!=Integration"`
+- **unit tests**: runs each unit test project under `tests/` (excludes Playwright by design)
 - **integration pipeline**: pack local NuGets → `dotnet new shalimar` → build IntegrationApp → run Playwright
 
 Playwright artifacts (console logs, page errors, and screenshot/HTML on failure) are written under `tests/TestResults/playwright/` (override via `SHALIMAR_TEST_ARTIFACTS`).
+
+### Proof that runtime TypeScript is delivered via the template (no manual copying into the generated app)
+
+`verify` includes an explicit proof step:
+- It temporarily appends a unique marker comment to `src/Shalimar.Runtime/ts/src/index.ts`
+- Packs the template
+- Runs `dotnet new shalimar`
+- Verifies the marker exists in the generated app at `Shared/runtime/index.ts`
+- Restores the original `index.ts` (no repo changes left behind)
 
 ---
 
@@ -68,6 +77,15 @@ pwsh ./scripts/pack.ps1 -Version 1.0.0-local
 dotnet new install Shalimar.Templates
 dotnet new shalimar -n MyApp
 ```
+
+---
+
+## IntegrationApp dev loop (HMR)
+
+For framework development, the ideal local loop is:
+- keep the app running in **Development**
+- keep Vite running with **HMR**
+- iterate on framework packages, then re-run `scripts/integration.ps1 -SkipPack` (or `scripts/verify` if you want a full reset).
 
 ---
 

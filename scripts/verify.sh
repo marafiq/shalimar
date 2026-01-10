@@ -106,14 +106,35 @@ integration_app="${repo_root}/src/Shalimar.IntegrationApp"
 echo "  Proving TS propagation (temporary marker)..."
 marker="SHALIMAR_VERIFY_TS_PROPAGATION__$(date +%s)"
 runtime_index="${runtime_ts}/src/index.ts"
-runtime_index_bak="${runtime_index}.bak.verify"
-cp "${runtime_index}" "${runtime_index_bak}"
+template_index="${template_runtime}/index.ts"
+proof_dir="$(mktemp -d)"
+cp "${runtime_index}" "${proof_dir}/runtime.index.ts"
+cp "${template_index}" "${proof_dir}/template.index.ts"
+
 cleanup_ts_marker() {
-  if [ -f "${runtime_index_bak}" ]; then
-    mv "${runtime_index_bak}" "${runtime_index}"
+  # Restore tracked files back to their original state.
+  if [ -d "${proof_dir}" ]; then
+    cp "${proof_dir}/runtime.index.ts" "${runtime_index}" || true
+    rm -rf "${template_runtime}" || true
+    mkdir -p "${template_runtime}" || true
+    cp -R "${runtime_ts}/src/"* "${template_runtime}/" || true
+    cp "${proof_dir}/template.index.ts" "${template_index}" || true
+    rm -rf "${proof_dir}" || true
   fi
 }
-trap cleanup_ts_marker EXIT
+
+cleanup_app() {
+  if [ -n "${app_pid:-}" ] && kill -0 "${app_pid}" >/dev/null 2>&1; then
+    kill "${app_pid}" >/dev/null 2>&1 || true
+  fi
+}
+
+cleanup_all() {
+  cleanup_app || true
+  cleanup_ts_marker || true
+}
+trap cleanup_all EXIT
+
 printf "\n// %s\n" "${marker}" >> "${runtime_index}"
 
 echo "  Packing ${version}..."
@@ -204,13 +225,6 @@ shopt -u nullglob
 ASPNETCORE_URLS="http://localhost:${port}" ASPNETCORE_ENVIRONMENT="Production" \
   dotnet run --project "${app_projects[0]}" --no-build >"${app_log}" 2>&1 &
 app_pid=$!
-
-cleanup() {
-  if kill -0 "${app_pid}" >/dev/null 2>&1; then
-    kill "${app_pid}" >/dev/null 2>&1 || true
-  fi
-}
-trap cleanup EXIT
 
 echo "  Waiting for app to start..."
 ready="false"
