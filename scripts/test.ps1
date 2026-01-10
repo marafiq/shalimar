@@ -51,15 +51,10 @@ if ($runIntegration) {
 
     # Install Playwright browsers if needed (no pwsh dependency; uses dotnet tool)
     Write-Host "  Ensuring Playwright browsers are installed..."
-    dotnet build "$RepoRoot/tests/Shalimar.IntegrationPlaywrightTests"
-    $toolsDir = Join-Path $RepoRoot ".tools"
-    New-Item -ItemType Directory -Path $toolsDir -Force | Out-Null
-    $playwrightExe = Join-Path $toolsDir "playwright"
-    if (-not (Test-Path $playwrightExe)) {
-        dotnet tool install --tool-path $toolsDir Microsoft.Playwright.CLI --version 1.57.0
-        if ($LASTEXITCODE -ne 0) { throw "Playwright CLI tool install failed" }
-    }
-    & $playwrightExe install chromium
+    dotnet build "$RepoRoot/tools/Shalimar.Playwright.Tool/Shalimar.Playwright.Tool.csproj"
+    if ($LASTEXITCODE -ne 0) { throw "Playwright installer tool build failed" }
+    dotnet run --project "$RepoRoot/tools/Shalimar.Playwright.Tool/Shalimar.Playwright.Tool.csproj" --no-build -- install chromium
+    if ($LASTEXITCODE -ne 0) { throw "Playwright browser install failed" }
 
     # Start IntegrationApp
     Write-Host "  Starting IntegrationApp on port $Port..."

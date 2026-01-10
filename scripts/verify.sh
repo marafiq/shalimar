@@ -78,7 +78,16 @@ dotnet build "${repo_root}/Shalimar.slnx" -c "${configuration}"
 
 echo
 echo "[3/4] Unit tests"
-dotnet test "${repo_root}/Shalimar.slnx" --filter "Category!=Integration"
+unit_projects=(
+  "${repo_root}/tests/Shalimar.Runtime.Tests/Shalimar.Runtime.Tests.csproj"
+  "${repo_root}/tests/Shalimar.SourceGenerator.Tests/Shalimar.SourceGenerator.Tests.csproj"
+  "${repo_root}/tests/Shalimar.RoslynAnalyzer.Tests/Shalimar.RoslynAnalyzer.Tests.csproj"
+  "${repo_root}/tests/Shalimar.MSBuildTasks.Tests/Shalimar.MSBuildTasks.Tests.csproj"
+  "${repo_root}/tests/Shalimar.Vite.Tests/Shalimar.Vite.Tests.csproj"
+)
+for p in "${unit_projects[@]}"; do
+  dotnet test "${p}"
+done
 
 if [ "${skip_integration}" = "true" ]; then
   echo
@@ -180,13 +189,8 @@ if [ "${skip_e2e}" = "true" ]; then
 fi
 
 echo "  Ensuring Playwright browsers are installed..."
-dotnet build "${repo_root}/tests/Shalimar.IntegrationPlaywrightTests"
-tools_dir="${repo_root}/.tools"
-mkdir -p "${tools_dir}"
-if [ ! -x "${tools_dir}/playwright" ]; then
-  dotnet tool install --tool-path "${tools_dir}" Microsoft.Playwright.CLI --version 1.57.0
-fi
-${tools_dir}/playwright install chromium
+dotnet build "${repo_root}/tools/Shalimar.Playwright.Tool/Shalimar.Playwright.Tool.csproj"
+dotnet run --project "${repo_root}/tools/Shalimar.Playwright.Tool/Shalimar.Playwright.Tool.csproj" --no-build -- install chromium
 
 echo "  Starting IntegrationApp on port ${port}..."
 log_dir="${integration_app}/TestResults"
