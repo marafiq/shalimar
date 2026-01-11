@@ -1,8 +1,6 @@
-import { Store } from '@tanstack/store'
+// App-level store module.
+// NOTE: Today this is a mock CRM implementation to establish patterns.
+// Later this will be generated from server-defined Shalimar components/modes.
 
-export const counterStore = new Store({ count: 0 })
-
-export function incrementCounter() {
-    counterStore.setState((s) => ({ ...s, count: s.count + 1 }))
-}
+export * from './crm/stores'
 

@@ -5,4 +5,12 @@ import { rootRoute, route, index } from '@tanstack/virtual-file-routes'
 
 export const routes = rootRoute('Client/root.tsx', [
     index('Features/Home/route.tsx'),
+    route('tasks', 'Features/Tasks/route.tsx', [
+        route('$taskId', 'Features/Tasks/$taskId/route.tsx'),
+        route('board', 'Features/Tasks/Board/route.tsx'),
+    ]),
+    route('accounts', 'Features/Accounts/route.tsx', [
+        route('$accountId', 'Features/Accounts/$accountId/route.tsx'),
+    ]),
+    route('settings', 'Features/Settings/route.tsx'),
 ])

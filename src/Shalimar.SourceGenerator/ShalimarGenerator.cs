@@ -1,7 +1,9 @@
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Text;
+using System;
 using System.Collections.Immutable;
+using System.Linq;
 using System.Text;
 
 namespace Shalimar.SourceGenerator;
@@ -205,29 +207,18 @@ public class ShalimarGenerator : IIncrementalGenerator
         tsSb.AppendLine();
         tsSb.AppendLine("export const routes = rootRoute('Client/root.tsx', [");
 
-        foreach (var component in components)
-        {
-            // Derive feature name from props type (e.g., HomeProps -> Home)
-            var featureName = component.TypeName;
-            if (featureName.EndsWith("Props"))
-                featureName = featureName.Substring(0, featureName.Length - 5);
+        // NOTE: We generate TanStack virtual file route configs from ASP.NET route paths.
+        // This is intentionally path-driven so we can later generate nested route trees.
+        // File mapping convention:
+        //   "/"                      -> Features/Home/route.tsx
+        //   "/tasks"                 -> Features/Tasks/route.tsx
+        //   "/tasks/board"           -> Features/Tasks/Board/route.tsx
+        //   "/tasks/{taskId}"        -> Features/Tasks/$taskId/route.tsx
+        //   "/accounts/{accountId}"  -> Features/Accounts/$accountId/route.tsx
+        // Each segment becomes a folder name (PascalCase) except parameter segments (`{x}`) which become `$x`.
 
-            var featurePath = $"Features/{featureName}/route.tsx";
-            if (component.Path == "/")
-            {
-                tsSb.AppendLine($"    index('{featurePath}'),");
-            }
-            else
-            {
-                var routePath = component.Path.TrimStart('/');
-                tsSb.AppendLine($"    route('{routePath}', '{featurePath}'),");
-            }
-        }
-
-        if (components.Count == 0)
-        {
-            tsSb.AppendLine("    index('Features/Home/route.tsx'),");
-        }
+        var routesTree = BuildRoutesTree(components.Select(c => c.Path).ToList());
+        EmitVirtualRoutes(tsSb, routesTree, indent: "    ");
 
         tsSb.AppendLine("])");
 
@@ -241,6 +232,130 @@ public class ShalimarGenerator : IIncrementalGenerator
         csSb.AppendLine("*/");
 
         context.AddSource("ShalimarRoutes.g.cs", SourceText.From(csSb.ToString(), Encoding.UTF8));
+    }
+
+    private sealed class RouteNode
+    {
+        public string Segment { get; }
+        public string? FilePath { get; set; }
+        public List<RouteNode> Children { get; } = new();
+
+        public RouteNode(string segment)
+        {
+            Segment = segment;
+        }
+    }
+
+    private static RouteNode BuildRoutesTree(List<string> paths)
+    {
+        var root = new RouteNode("");
+
+        // Ensure deterministic ordering.
+        foreach (var path in paths.Distinct().OrderBy(p => p, StringComparer.Ordinal))
+        {
+            var normalized = path == "/" ? "/" : "/" + path.Trim('/'); // normalize
+            if (normalized == "/")
+            {
+                root.FilePath = "Features/Home/route.tsx";
+                continue;
+            }
+
+            var segments = normalized.Trim('/').Split(new[] { '/' }, StringSplitOptions.RemoveEmptyEntries);
+            var current = root;
+            for (var i = 0; i < segments.Length; i++)
+            {
+                var seg = segments[i];
+                var child = current.Children.FirstOrDefault(c => c.Segment == seg);
+                if (child == null)
+                {
+                    child = new RouteNode(seg);
+                    current.Children.Add(child);
+                }
+                current = child;
+            }
+
+            current.FilePath = MapPathToRouteFile(normalized);
+        }
+
+        // Sort children at each node for stable output.
+        SortTree(root);
+        return root;
+    }
+
+    private static void SortTree(RouteNode node)
+    {
+        node.Children.Sort((a, b) => StringComparer.Ordinal.Compare(a.Segment, b.Segment));
+        foreach (var c in node.Children) SortTree(c);
+    }
+
+    private static string MapPathToRouteFile(string normalizedPath)
+    {
+        if (normalizedPath == "/")
+            return "Features/Home/route.tsx";
+
+        var parts = normalizedPath.Trim('/').Split(new[] { '/' }, StringSplitOptions.RemoveEmptyEntries);
+        var folders = parts.Select(p =>
+        {
+            if (p.StartsWith("{") && p.EndsWith("}") && p.Length > 2)
+                return "$" + p.Substring(1, p.Length - 2);
+            return ToPascalCase(p);
+        });
+
+        return $"Features/{string.Join("/", folders)}/route.tsx";
+    }
+
+    private static string ToPascalCase(string s)
+    {
+        if (string.IsNullOrWhiteSpace(s))
+            return s;
+
+        // Preserve existing casing for non-letter prefixes (e.g. '$taskId', though those should be handled earlier).
+        var parts = s.Split(new[] { '-', '_' }, StringSplitOptions.RemoveEmptyEntries);
+        var sb = new StringBuilder();
+        foreach (var p in parts)
+        {
+            if (p.Length == 0) continue;
+            sb.Append(char.ToUpperInvariant(p[0]));
+            if (p.Length > 1) sb.Append(p.Substring(1));
+        }
+        return sb.ToString();
+    }
+
+    private static void EmitVirtualRoutes(StringBuilder tsSb, RouteNode root, string indent)
+    {
+        // Index route
+        if (!string.IsNullOrWhiteSpace(root.FilePath))
+        {
+            tsSb.AppendLine($"{indent}index('{root.FilePath}'),");
+        }
+
+        foreach (var child in root.Children)
+        {
+            EmitNode(tsSb, child, indent);
+        }
+    }
+
+    private static void EmitNode(StringBuilder tsSb, RouteNode node, string indent)
+    {
+        var pathSegment = node.Segment.StartsWith("{") && node.Segment.EndsWith("}") && node.Segment.Length > 2
+            ? "$" + node.Segment.Substring(1, node.Segment.Length - 2)
+            : node.Segment;
+
+        if (node.Children.Count == 0)
+        {
+            // Leaf
+            var file = node.FilePath ?? $"Features/{ToPascalCase(pathSegment)}/route.tsx";
+            tsSb.AppendLine($"{indent}route('{pathSegment}', '{file}'),");
+            return;
+        }
+
+        var filePath = node.FilePath ?? $"Features/{ToPascalCase(pathSegment)}/route.tsx";
+        tsSb.AppendLine($"{indent}route('{pathSegment}', '{filePath}', [");
+        foreach (var c in node.Children)
+        {
+            EmitNode(tsSb, c, indent + "    ");
+        }
+        tsSb.AppendLine($"{indent}]),");
     }
 
     private static void GenerateTypeScriptRouteDefsEmbedded(
