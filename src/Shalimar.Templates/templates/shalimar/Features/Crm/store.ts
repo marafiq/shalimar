@@ -64,7 +64,10 @@ export async function createTask(title: string, accountId?: Id) {
     return task
 }
 
-export async function updateTask(taskId: Id, patch: Partial<Pick<Task, 'title' | 'priority' | 'assigneeId' | 'accountId' | 'dueAt'>>) {
+export async function updateTask(
+    taskId: Id,
+    patch: Partial<Pick<Task, 'title' | 'priority' | 'assigneeId' | 'accountId' | 'dueAt'>>,
+) {
     const updated = await api.updateTask(taskId, patch)
     if (!updated) return
     crmStore.setState((s) => ({ ...s, tasks: { ...s.tasks, [updated.id]: updated } }))

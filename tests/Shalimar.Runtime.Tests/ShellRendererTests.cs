@@ -17,7 +17,7 @@ public class ShellRendererTests
         var html = await renderer.RenderAsync(new { environment = "Development" }, new { message = "hi" });
 
         Assert.Contains("src=\"/@vite/client\"", html);
-        Assert.Contains("src=\"/Client/main.tsx\"", html);
+        Assert.Contains("src=\"/Features/App/main.tsx\"", html);
     }
 
     private sealed class FakeWebHostEnvironment : IWebHostEnvironment

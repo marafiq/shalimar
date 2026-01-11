@@ -1,7 +1,7 @@
 import { Link } from '@tanstack/react-router'
 import { useStore } from '@tanstack/react-store'
 import { Button, Heading, Text } from '@react-spectrum/s2'
-import { crmStore } from '../crm/stores'
+import { crmStore } from '../../Crm/store'
 import { IconX } from './icons'
 import { markAllNotificationsRead, setNotificationsOpen, uiStore } from './store'
 

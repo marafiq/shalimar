@@ -60,7 +60,6 @@ public class ViteOptions
         "/@id",
         "/@react-refresh",
         "/node_modules",
-        "/Client",
         "/Features",
         "/Generated",
         "/__vite_ping"

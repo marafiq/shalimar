@@ -32,6 +32,7 @@ if (!rootElement.innerHTML) {
             <Provider background="base">
                 <RouterProvider router={router} />
             </Provider>
-        </StrictMode>
+        </StrictMode>,
     )
 }
+

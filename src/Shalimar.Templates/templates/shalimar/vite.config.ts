@@ -30,7 +30,7 @@ export default defineConfig({
         outDir: 'wwwroot/dist',
         emptyOutDir: true,
         rollupOptions: {
-            input: 'Client/main.tsx',
+            input: 'Features/App/main.tsx',
             output: {
                 entryFileNames: 'assets/[name]-[hash].js',
                 chunkFileNames: 'assets/[name]-[hash].js',

@@ -10,11 +10,11 @@ import {
     loadTaskMessages,
     postTaskMessage,
     updateTask,
-} from '../../../Client/store'
-import type { TaskActor } from '../../../Client/crm/types'
-import { DrawerSkeleton } from '../../../Client/ui/Skeletons'
-import { IconX } from '../../../Client/ui/icons'
-import { openModal, pushNotification, pushToast } from '../../../Client/ui/store'
+} from '../../Crm/store'
+import type { TaskActor } from '../../Crm/types'
+import { DrawerSkeleton } from '../../App/ui/Skeletons'
+import { IconX } from '../../App/ui/icons'
+import { openModal, pushNotification, pushToast } from '../../App/ui/store'
 
 export function TaskDrawer(props: {
     open: boolean
@@ -104,7 +104,13 @@ export function TaskDrawer(props: {
                                                 Actions
                                             </div>
                                             <div className="mt-2 flex flex-wrap gap-2">
-                                                <Button isQuiet onPress={() => openModal('Task mode', 'This will map to Shalimar component modes later.')}>
+                                                <Button
+                                                    isQuiet
+                                                    data-testid="taskdrawer-about-modes"
+                                                    onPress={() =>
+                                                        openModal('Task mode', 'This will map to Shalimar component modes later.')
+                                                    }
+                                                >
                                                     About modes
                                                 </Button>
                                                 <Button isQuiet onPress={() => openModal('Audit trail', 'Activity is currently mock/polled. Later: server-driven events.')}>

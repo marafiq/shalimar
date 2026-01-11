@@ -69,7 +69,7 @@ public class ShellRenderer
     /// <summary>
     /// Gets the main script path from Vite manifest (production) or dev server (development).
     /// </summary>
-    public async Task<string> GetMainScriptPathAsync(string entryPoint = "Client/main.tsx")
+    public async Task<string> GetMainScriptPathAsync(string entryPoint = "Features/App/main.tsx")
     {
         if (_environment.IsDevelopment())
         {
@@ -94,7 +94,7 @@ public class ShellRenderer
     /// <summary>
     /// Gets CSS links from Vite manifest for production builds.
     /// </summary>
-    public async Task<string> GetCssLinksAsync(string entryPoint = "Client/main.tsx")
+    public async Task<string> GetCssLinksAsync(string entryPoint = "Features/App/main.tsx")
     {
         if (_environment.IsDevelopment())
         {

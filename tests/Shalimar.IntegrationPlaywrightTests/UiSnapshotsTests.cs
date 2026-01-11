@@ -93,7 +93,7 @@ public class UiSnapshotsTests(IntegrationAppFixture fixture)
         {
             await page.GotoAsync($"{fixture.BaseUrl}/tasks?drawer=t_1");
             await page.WaitForLoadStateAsync(LoadState.NetworkIdle);
-            await page.GetByRole(AriaRole.Button, new() { Name = "About modes" }).ClickAsync();
+            await page.GetByTestId("taskdrawer-about-modes").ClickAsync();
             await Assertions.Expect(page.GetByRole(AriaRole.Dialog)).ToBeVisibleAsync();
             await SnapshotAssertions.AssertMatchesAsync(page, diag, nameof(Modal_Open), "modal.png");
         }
@@ -117,7 +117,7 @@ public class UiSnapshotsTests(IntegrationAppFixture fixture)
         {
             await page.GotoAsync($"{fixture.BaseUrl}/tasks?drawer=t_1");
             await page.WaitForLoadStateAsync(LoadState.NetworkIdle);
-            await page.GetByLabel("Reply").FillAsync("Looks good — shipping this now.");
+            await page.GetByPlaceholder("Ask the agent, add context, or send an update…").FillAsync("Looks good — shipping this now.");
             await page.GetByRole(AriaRole.Button, new() { Name = "Send as Human" }).ClickAsync();
             await Assertions.Expect(page.GetByTestId("toast")).ToBeVisibleAsync();
             await SnapshotAssertions.AssertMatchesAsync(page, diag, nameof(Toast_Visible), "toast.png");

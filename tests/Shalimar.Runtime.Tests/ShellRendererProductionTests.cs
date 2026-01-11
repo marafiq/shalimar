@@ -19,7 +19,7 @@ public class ShellRendererProductionTests
             Path.Combine(wwwroot, "dist", ".vite", "manifest.json"),
             """
             {
-              "Client/main.tsx": {
+              "Features/App/main.tsx": {
                 "file": "assets/main-abc123.js",
                 "css": ["assets/main-abc123.css"],
                 "isEntry": true

@@ -2,8 +2,8 @@ import { createFileRoute, Link } from '@tanstack/react-router'
 import { Button, Heading, Text } from '@react-spectrum/s2'
 import { useMemo } from 'react'
 import { useStore } from '@tanstack/react-store'
-import { crmStore, ensureAccounts, ensureUsers, loadContacts } from '../../../Client/store'
-import { PageSkeleton } from '../../../Client/ui/Skeletons'
+import { crmStore, ensureAccounts, ensureUsers, loadContacts } from '../../Crm/store'
+import { PageSkeleton } from '../../App/ui/Skeletons'
 
 export const Route = createFileRoute('/accounts/$accountId')({
     validateSearch: (search: Record<string, unknown>) => ({

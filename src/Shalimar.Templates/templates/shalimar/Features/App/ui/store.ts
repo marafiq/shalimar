@@ -1,5 +1,5 @@
 import { Store } from '@tanstack/store'
-import type { Id } from '../crm/types'
+import type { Id } from '../../Crm/types'
 
 export type ToastTone = 'neutral' | 'success' | 'warning' | 'danger'
 

@@ -165,7 +165,10 @@ export async function updateTaskStatus(id: Id, status: TaskStatus): Promise<Task
     return t
 }
 
-export async function updateTask(id: Id, patch: Partial<Pick<Task, 'title' | 'priority' | 'assigneeId' | 'accountId' | 'dueAt'>>): Promise<Task | undefined> {
+export async function updateTask(
+    id: Id,
+    patch: Partial<Pick<Task, 'title' | 'priority' | 'assigneeId' | 'accountId' | 'dueAt'>>,
+): Promise<Task | undefined> {
     await delay(220)
     const t = tasks.find((x) => x.id === id)
     if (!t) return undefined

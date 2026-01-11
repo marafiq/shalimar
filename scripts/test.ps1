@@ -20,6 +20,26 @@ $ErrorActionPreference = "Stop"
 $RepoRoot = Join-Path $PSScriptRoot ".."
 $AppDir = Join-Path $RepoRoot "src/Shalimar.IntegrationApp"
 
+function Test-PortAvailable([int]$port) {
+    try {
+        $listener = [System.Net.Sockets.TcpListener]::new([System.Net.IPAddress]::Loopback, $port)
+        $listener.Start()
+        $listener.Stop()
+        return $true
+    } catch {
+        try { if ($listener) { $listener.Stop() } } catch { }
+        return $false
+    }
+}
+
+function Get-FreeTcpPort() {
+    $listener = [System.Net.Sockets.TcpListener]::new([System.Net.IPAddress]::Loopback, 0)
+    $listener.Start()
+    $port = $listener.LocalEndpoint.Port
+    $listener.Stop()
+    return $port
+}
+
 # If neither specified, run both
 $runUnit = $Unit -or (-not $Unit -and -not $Integration)
 $runIntegration = $Integration -or (-not $Unit -and -not $Integration)
@@ -60,17 +80,34 @@ if ($runIntegration) {
     if ($LASTEXITCODE -ne 0) { throw "Playwright browser install failed" }
 
     # Start IntegrationApp
-    Write-Host "  Starting IntegrationApp on port $Port..."
+    $effectivePort = $Port
+    if ($effectivePort -le 0) {
+        $effectivePort = Get-FreeTcpPort
+    } elseif (-not (Test-PortAvailable $effectivePort)) {
+        $effectivePort = Get-FreeTcpPort
+        Write-Host "  Port $Port is in use; using $effectivePort instead." -ForegroundColor Yellow
+    }
+
+    Write-Host "  Starting IntegrationApp on port $effectivePort..."
     Push-Location $AppDir
-    $env:ASPNETCORE_URLS = "http://localhost:$Port"
+    $env:ASPNETCORE_URLS = "http://localhost:$effectivePort"
     $env:ASPNETCORE_ENVIRONMENT = "Production"
 
     $logFile = Join-Path $AppDir "app.log"
+    $tfm = "net10.0"
+    $config = "Debug"
+    $exe = Join-Path $AppDir "bin/$config/$tfm/Shalimar.IntegrationApp"
+    if ($IsWindows) { $exe = "$exe.exe" }
+    if (-not (Test-Path $exe)) {
+        Pop-Location
+        throw "IntegrationApp build output not found at '$exe'. Run ./scripts/integration.ps1 first."
+    }
+
     # Cross-platform: use Start-Process without -WindowStyle on non-Windows
     if ($IsWindows) {
-        $process = Start-Process dotnet -ArgumentList "run","--no-build" -PassThru -RedirectStandardOutput $logFile -RedirectStandardError "$logFile.err" -WindowStyle Hidden
+        $process = Start-Process $exe -PassThru -RedirectStandardOutput $logFile -RedirectStandardError "$logFile.err" -WindowStyle Hidden
     } else {
-        $process = Start-Process dotnet -ArgumentList "run","--no-build" -PassThru -RedirectStandardOutput $logFile -RedirectStandardError "$logFile.err"
+        $process = Start-Process $exe -PassThru -RedirectStandardOutput $logFile -RedirectStandardError "$logFile.err"
     }
 
     # Wait for app to be ready
@@ -79,7 +116,7 @@ if ($runIntegration) {
     for ($i = 0; $i -lt 30; $i++) {
         Start-Sleep 1
         try {
-            $response = Invoke-WebRequest "http://localhost:$Port" -UseBasicParsing -TimeoutSec 2 -ErrorAction SilentlyContinue
+            $response = Invoke-WebRequest "http://localhost:$effectivePort" -UseBasicParsing -TimeoutSec 2 -ErrorAction SilentlyContinue
             if ($response.StatusCode -eq 200) {
                 $ready = $true
                 break
@@ -99,7 +136,7 @@ if ($runIntegration) {
     Pop-Location
 
     try {
-        $env:INTEGRATION_APP_URL = "http://localhost:$Port"
+        $env:INTEGRATION_APP_URL = "http://localhost:$effectivePort"
         $args = @("$RepoRoot/tests/Shalimar.IntegrationPlaywrightTests", "--filter", "Category=Integration")
         if ($NoBuild) { $args += "--no-build" }
         dotnet test @args

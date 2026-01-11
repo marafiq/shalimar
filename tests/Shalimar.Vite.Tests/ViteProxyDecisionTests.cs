@@ -9,7 +9,7 @@ public class ViteProxyDecisionTests
     [InlineData("/__vite_ping")]
     [InlineData("/@vite/client")]
     [InlineData("/@fs/some/path")]
-    [InlineData("/Client/main.tsx")]
+    [InlineData("/Features/App/main.tsx")]
     [InlineData("/Features/Home/index.tsx")]
     [InlineData("/Generated/routeTree.gen.ts")]
     public void ShouldProxyToVite_ReturnsTrue_ForKnownDevPaths(string path)
