@@ -8,9 +8,12 @@ export { createRouter } from './router'
 export type { ShalimarContext, ShalimarProviderProps } from './types'
 
 export { useDeferred, prefetchDeferred, clearDeferredCache, invalidateDeferred, invalidateDeferredByPrefix } from './deferred'
-export { useLazy, clearLazyCache, invalidateLazy, invalidateLazyByPrefix } from './lazy'
+export { useLazy, prefetchLazy, clearLazyCache, invalidateLazy, invalidateLazyByPrefix } from './lazy'
 export { useStream, clearStreamedCache, invalidateStreamed, invalidateStreamedByPrefix } from './streamed'
 export { useSse, clearSseCache, invalidateSse, invalidateSseByPrefix } from './sse'
+
+export { prefetchBehaviors, useBehaviors } from './behaviors'
+
 
 
 

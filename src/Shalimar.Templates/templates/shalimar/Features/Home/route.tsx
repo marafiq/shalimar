@@ -4,7 +4,7 @@ import { Suspense, useEffect, useMemo, useState } from 'react'
 import { useStore } from '@tanstack/react-store'
 import { createTask, crmStore, ensureAccounts, ensureTasks, ensureUsers, refreshActivity } from '../Crm/store'
 import { PageSkeleton } from '../App/ui/Skeletons'
-import { useDeferred, useLazy, useSse, useStream } from '@shalimar/runtime'
+import { useBehaviors, useDeferred, useLazy, useSse, useStream } from '@shalimar/runtime'
 import type { CrmActivityExportRowDto, CrmForecastDto, CrmInsightsDto, CrmSseEventDto, DashboardProps } from '@generated/shalimar-types.g'
 
 export const Route = createFileRoute('/')({
@@ -43,6 +43,7 @@ function HomeRoute() {
     const filtered = open.filter((t) => t.title.toLowerCase().includes(query.trim().toLowerCase()))
 
     const props = (window.__SHALIMAR_PROPS__ ?? { message: 'Welcome to Shalimar' }) as DashboardProps
+    useBehaviors(props.agentPanel.behaviors)
 
     return (
         <div className="grid gap-6 lg:grid-cols-12">

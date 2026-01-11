@@ -1,4 +1,5 @@
 using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Text;
 using System;
@@ -470,12 +471,15 @@ public class ShalimarGenerator : IIncrementalGenerator
         GenerateCSharpStreamRefs(context, stream);
         GenerateCSharpSseRefs(context, sse);
         GenerateCSharpComponentTreeRefs(context, deferred, lazy, stream, sse);
+        GenerateCSharpBehaviorsRefs(context, deferred, lazy, stream, sse);
 
         GenerateTypeScriptInvalidationsEmbedded(context, compilation, deferred, lazy, stream, sse);
         GenerateTypeScriptMutationsEmbedded(context, compilation, mutations);
 
         // Generate TypeScript embedded in C# files (for MSBuild task to extract)
         GenerateTypeScriptTypesEmbedded(context, compilation, components, mutations);
+        GenerateTypeScriptZodSchemasEmbedded(context, compilation, mutations);
+        GenerateTypeScriptDefaultsEmbedded(context, compilation, mutations);
         GenerateTypeScriptRoutesEmbedded(context, components);
         GenerateTypeScriptRouteDefsEmbedded(context, components);
         GenerateTypeScriptPathsEmbedded(context, components);
@@ -498,6 +502,23 @@ public class ShalimarGenerator : IIncrementalGenerator
             sb.AppendLine($"    public static string {component.TypeName} => \"{component.Path}\";");
         }
 
+        sb.AppendLine();
+        sb.AppendLine("    // Typed route helpers (derived from Minimal API route templates)");
+        foreach (var component in components.OrderBy(c => c.TypeName, StringComparer.Ordinal))
+        {
+            var template = component.Path;
+            if (string.IsNullOrWhiteSpace(template)) continue;
+            if (template.IndexOf("{", StringComparison.Ordinal) < 0) continue;
+
+            var paramSpecs = ExtractRouteParamsWithConstraints(template);
+            if (paramSpecs.Count == 0) continue;
+
+            var methodName = $"{component.TypeName}Path";
+            var sig = string.Join(", ", paramSpecs.Select(p => $"{p.CsType} {p.ParamName}"));
+            var expr = BuildCSharpPathExpression(template, paramSpecs);
+            sb.AppendLine($"    public static string {methodName}({sig}) => {expr};");
+        }
+
         if (components.Count == 0)
         {
             sb.AppendLine("    // No routes defined yet");
@@ -506,6 +527,120 @@ public class ShalimarGenerator : IIncrementalGenerator
         sb.AppendLine("}");
 
         context.AddSource("Routes.g.cs", SourceText.From(sb.ToString(), Encoding.UTF8));
+    }
+
+    private sealed class RouteParamSpec
+    {
+        public string ParamName { get; }
+        public string CsType { get; }
+        public string Placeholder { get; }
+
+        public RouteParamSpec(string paramName, string csType, string placeholder)
+        {
+            ParamName = paramName;
+            CsType = csType;
+            Placeholder = placeholder;
+        }
+    }
+
+    private static List<RouteParamSpec> ExtractRouteParamsWithConstraints(string template)
+    {
+        var output = new List<RouteParamSpec>();
+        var names = new HashSet<string>(StringComparer.Ordinal);
+
+        foreach (var raw in ExtractRouteParams(template))
+        {
+            // raw may be: "id", "id:int", "id:guid", "id:int:min(1)", "id?"
+            var namePart = raw;
+            var colonIdx = raw.IndexOf(':');
+            if (colonIdx >= 0) namePart = raw.Substring(0, colonIdx);
+
+            // Optional segments are not supported yet in typed helpers (avoid lying about required params).
+            if (namePart.EndsWith("?", StringComparison.Ordinal))
+                continue;
+
+            var paramName = SanitizeIdentifier(namePart);
+            if (!names.Add(paramName)) continue;
+
+            var constraint = colonIdx >= 0 ? raw.Substring(colonIdx + 1) : null;
+            var csType = MapRouteConstraintToCSharpType(constraint);
+            output.Add(new RouteParamSpec(paramName, csType, namePart));
+        }
+
+        return output;
+    }
+
+    private static string MapRouteConstraintToCSharpType(string? constraint)
+    {
+        if (string.IsNullOrWhiteSpace(constraint))
+            return "string";
+
+        // Use the first constraint token (e.g. "int:min(1)" => "int").
+        var first = constraint!.Split(':')[0].Trim();
+        return first switch
+        {
+            "int" => "global::System.Int32",
+            "long" => "global::System.Int64",
+            "guid" => "global::System.Guid",
+            "bool" => "global::System.Boolean",
+            _ => "string"
+        };
+    }
+
+    private static string BuildCSharpPathExpression(string template, List<RouteParamSpec> specs)
+    {
+        // Build: "/a/" + Uri.EscapeDataString(x.ToString(...)) + "/b"
+        var normalized = template == "/" ? "/" : "/" + template.Trim('/');
+        if (normalized == "/") return "\"/\"";
+
+        var segments = normalized.Trim('/').Split(new[] { '/' }, StringSplitOptions.RemoveEmptyEntries);
+        var parts = new List<string> { "\"/\"" };
+
+        foreach (var seg in segments)
+        {
+            if (seg.StartsWith("{") && seg.EndsWith("}") && seg.Length > 2)
+            {
+                var inner = seg.Substring(1, seg.Length - 2);
+                var namePart = inner;
+                var colonIdx = inner.IndexOf(':');
+                if (colonIdx >= 0) namePart = inner.Substring(0, colonIdx);
+                if (namePart.EndsWith("?", StringComparison.Ordinal))
+                    throw new InvalidOperationException("Optional route params not supported in typed route helpers.");
+
+                var paramName = SanitizeIdentifier(namePart);
+                var spec = specs.FirstOrDefault(s => s.ParamName == paramName);
+                if (spec is null) continue;
+
+                var toStringExpr = spec.CsType switch
+                {
+                    "global::System.Int32" or "global::System.Int64" =>
+                        $"{paramName}.ToString(global::System.Globalization.CultureInfo.InvariantCulture)",
+                    _ => $"{paramName}.ToString()"
+                };
+                parts.Add($"global::System.Uri.EscapeDataString({toStringExpr})");
+            }
+            else
+            {
+                parts.Add($"\"{seg}\"");
+            }
+        }
+
+        // Join with "/"
+        // "/"+seg0+"/"+seg1...
+        var sb = new StringBuilder();
+        for (var i = 0; i < parts.Count; i++)
+        {
+            if (i == 0)
+            {
+                sb.Append(parts[i]);
+                continue;
+            }
+
+            sb.Append(" + \"/\" + ");
+            sb.Append(parts[i]);
+        }
+
+        return sb.ToString();
     }
 
     private static void GenerateCSharpDeferredRefs(SourceProductionContext context, List<DeferredInfo> deferred)
@@ -698,6 +833,92 @@ public class ShalimarGenerator : IIncrementalGenerator
         sb.AppendLine("}");
 
         context.AddSource("Components.g.cs", SourceText.From(sb.ToString(), Encoding.UTF8));
+    }
+
+    private static void GenerateCSharpBehaviorsRefs(
+        SourceProductionContext context,
+        List<DeferredInfo> deferred,
+        List<LazyInfo> lazy,
+        List<StreamInfo> stream,
+        List<SseInfo> sse)
+    {
+        var any = deferred.Any(d => !string.IsNullOrWhiteSpace(d.ParentComponentTypeName)) ||
+                  lazy.Any(d => !string.IsNullOrWhiteSpace(d.ParentComponentTypeName)) ||
+                  stream.Any(d => !string.IsNullOrWhiteSpace(d.ParentComponentTypeName)) ||
+                  sse.Any(d => !string.IsNullOrWhiteSpace(d.ParentComponentTypeName));
+
+        if (!any) return;
+
+        var byParent = new SortedDictionary<string, (SortedSet<string> Deferred, SortedSet<string> Lazy, SortedSet<string> Stream, SortedSet<string> Sse)>(StringComparer.Ordinal);
+
+        static void Ensure(
+            SortedDictionary<string, (SortedSet<string> Deferred, SortedSet<string> Lazy, SortedSet<string> Stream, SortedSet<string> Sse)> map,
+            string key)
+        {
+            if (map.ContainsKey(key)) return;
+            map[key] = (new SortedSet<string>(StringComparer.Ordinal), new SortedSet<string>(StringComparer.Ordinal), new SortedSet<string>(StringComparer.Ordinal), new SortedSet<string>(StringComparer.Ordinal));
+        }
+
+        foreach (var d in deferred)
+        {
+            if (string.IsNullOrWhiteSpace(d.ParentComponentTypeName)) continue;
+            Ensure(byParent, d.ParentComponentTypeName!);
+            byParent[d.ParentComponentTypeName!].Deferred.Add(d.Path);
+        }
+        foreach (var d in lazy)
+        {
+            if (string.IsNullOrWhiteSpace(d.ParentComponentTypeName)) continue;
+            Ensure(byParent, d.ParentComponentTypeName!);
+            byParent[d.ParentComponentTypeName!].Lazy.Add(d.Path);
+        }
+        foreach (var d in stream)
+        {
+            if (string.IsNullOrWhiteSpace(d.ParentComponentTypeName)) continue;
+            Ensure(byParent, d.ParentComponentTypeName!);
+            byParent[d.ParentComponentTypeName!].Stream.Add(d.Path);
+        }
+        foreach (var d in sse)
+        {
+            if (string.IsNullOrWhiteSpace(d.ParentComponentTypeName)) continue;
+            Ensure(byParent, d.ParentComponentTypeName!);
+            byParent[d.ParentComponentTypeName!].Sse.Add(d.Path);
+        }
+
+        static string EmitArray(SortedSet<string> items) =>
+            items.Count == 0 ? "global::System.Array.Empty<string>()" : $"new[] {{ {string.Join(", ", items.Select(i => $"\"{i}\""))} }}";
+
+        var sb = new StringBuilder();
+        sb.AppendLine("// <auto-generated/>");
+        sb.AppendLine("namespace Shalimar.Generated;");
+        sb.AppendLine();
+        sb.AppendLine("public static class Behaviors");
+        sb.AppendLine("{");
+
+        foreach (var kvp in byParent)
+        {
+            var parentName = SanitizeIdentifier(kvp.Key);
+            sb.AppendLine($"    public static class {parentName}");
+            sb.AppendLine("    {");
+
+            sb.AppendLine("        public static global::Shalimar.ShalimarBehaviors PrefetchDeferred() => new(");
+            sb.AppendLine($"            DeferredHrefs: {EmitArray(kvp.Value.Deferred)},");
+            sb.AppendLine("            LazyHrefs: global::System.Array.Empty<string>(),");
+            sb.AppendLine("            StreamedHrefs: global::System.Array.Empty<string>(),");
+            sb.AppendLine("            SseHrefs: global::System.Array.Empty<string>());");
+            sb.AppendLine();
+
+            sb.AppendLine("        public static global::Shalimar.ShalimarBehaviors All() => new(");
+            sb.AppendLine($"            DeferredHrefs: {EmitArray(kvp.Value.Deferred)},");
+            sb.AppendLine($"            LazyHrefs: {EmitArray(kvp.Value.Lazy)},");
+            sb.AppendLine($"            StreamedHrefs: {EmitArray(kvp.Value.Stream)},");
+            sb.AppendLine($"            SseHrefs: {EmitArray(kvp.Value.Sse)});");
+
+            sb.AppendLine("    }");
+        }
+
+        sb.AppendLine("}");
+
+        context.AddSource("Behaviors.g.cs", SourceText.From(sb.ToString(), Encoding.UTF8));
     }
 
     private static void GenerateTypeScriptInvalidationsEmbedded(
@@ -1096,7 +1317,11 @@ public class ShalimarGenerator : IIncrementalGenerator
         var folders = parts.Select(p =>
         {
             if (p.StartsWith("{") && p.EndsWith("}") && p.Length > 2)
-                return "$" + p.Substring(1, p.Length - 2);
+            {
+                var inner = p.Substring(1, p.Length - 2);
+                var name = inner.Split(':')[0].TrimEnd('?');
+                return "$" + name;
+            }
             return ToPascalCase(p);
         });
 
@@ -1137,7 +1362,7 @@ public class ShalimarGenerator : IIncrementalGenerator
     private static void EmitNode(StringBuilder tsSb, RouteNode node, string indent)
     {
         var pathSegment = node.Segment.StartsWith("{") && node.Segment.EndsWith("}") && node.Segment.Length > 2
-            ? "$" + node.Segment.Substring(1, node.Segment.Length - 2)
+            ? "$" + node.Segment.Substring(1, node.Segment.Length - 2).Split(':')[0].TrimEnd('?')
             : node.Segment;
 
         if (node.Children.Count == 0)
@@ -1244,6 +1469,8 @@ public class ShalimarGenerator : IIncrementalGenerator
         // Stable import paths for app code (avoid importing *.g.ts directly everywhere).
         EmitFacade(context, "ShalimarFacade.Types.g.cs", "types.ts", "export * from './shalimar-types.g'");
         EmitFacade(context, "ShalimarFacade.Paths.g.cs", "paths.ts", "export * from './shalimar-paths.g'");
+        EmitFacade(context, "ShalimarFacade.Schemas.g.cs", "schemas.ts", "export * from './shalimar-zod-schemas.g'");
+        EmitFacade(context, "ShalimarFacade.Defaults.g.cs", "defaults.ts", "export * from './shalimar-defaults.g'");
         EmitFacade(
             context,
             "ShalimarFacade.Store.g.cs",
@@ -1252,6 +1479,493 @@ public class ShalimarGenerator : IIncrementalGenerator
             export * from './shalimar-invalidations.g'
             export * from './shalimar-mutations.g'
             """);
+    }
+
+    private sealed class ValidatorRules
+    {
+        public Dictionary<string, PropertyRules> Properties { get; } = new Dictionary<string, PropertyRules>(StringComparer.Ordinal);
+    }
+
+    private sealed class PropertyRules
+    {
+        public bool NotEmpty { get; set; }
+        public bool NotNull { get; set; }
+        public int? MaxLength { get; set; }
+        public int? MinLength { get; set; }
+        public long? MinNumber { get; set; }
+        public List<string>? AllowedValues { get; set; }
+        public bool AppliesToEachElement { get; set; }
+    }
+
+    private static void GenerateTypeScriptZodSchemasEmbedded(
+        SourceProductionContext context,
+        Compilation compilation,
+        List<MutationInfo> mutations)
+    {
+        IEqualityComparer<INamedTypeSymbol> namedSymbolComparer = SymbolEqualityComparer.Default;
+        var requestTypes = mutations
+            .Select(m => m.RequestType)
+            .OfType<INamedTypeSymbol>()
+            .Distinct(namedSymbolComparer)
+            .ToImmutableArray();
+
+        if (requestTypes.Length == 0) return;
+
+        var validators = CollectFluentValidationRules(compilation);
+        var requestTypeList = requestTypes.Where(t => t is not null).ToList();
+
+        var tsSb = new StringBuilder();
+        tsSb.AppendLine("// Generated by Shalimar - DO NOT EDIT");
+        tsSb.AppendLine("import { z } from 'zod'");
+        tsSb.AppendLine("import type {");
+        foreach (var t in requestTypeList.OrderBy(t => t!.Name, StringComparer.Ordinal))
+            tsSb.AppendLine($"    {t!.Name},");
+        tsSb.AppendLine("} from './shalimar-types.g'");
+        tsSb.AppendLine();
+
+        foreach (var type in requestTypeList.OrderBy(t => t!.Name, StringComparer.Ordinal))
+        {
+            ValidatorRules rules;
+            if (!validators.TryGetValue(type!, out rules) || rules is null)
+                rules = new ValidatorRules();
+            tsSb.AppendLine($"export const {type!.Name}Schema = {EmitZodSchemaForType(type!, rules)}");
+            tsSb.AppendLine();
+        }
+
+        tsSb.AppendLine("export const schemas = {");
+        foreach (var type in requestTypeList.OrderBy(t => t!.Name, StringComparer.Ordinal))
+            tsSb.AppendLine($"    {type!.Name}: {type!.Name}Schema,");
+        tsSb.AppendLine("} as const");
+        tsSb.AppendLine();
+
+        var csSb = new StringBuilder();
+        csSb.AppendLine("// <auto-generated/>");
+        csSb.AppendLine("/*");
+        csSb.AppendLine("SHALIMAR_TS: shalimar-zod-schemas.g.ts");
+        csSb.Append(tsSb);
+        csSb.AppendLine("END_SHALIMAR_TS");
+        csSb.AppendLine("*/");
+
+        context.AddSource("ShalimarZodSchemas.g.cs", SourceText.From(csSb.ToString(), Encoding.UTF8));
+    }
+
+    private static void GenerateTypeScriptDefaultsEmbedded(
+        SourceProductionContext context,
+        Compilation compilation,
+        List<MutationInfo> mutations)
+    {
+        IEqualityComparer<INamedTypeSymbol> namedSymbolComparer = SymbolEqualityComparer.Default;
+        var requestTypes = mutations
+            .Select(m => m.RequestType)
+            .OfType<INamedTypeSymbol>()
+            .Distinct(namedSymbolComparer)
+            .ToImmutableArray();
+
+        if (requestTypes.Length == 0) return;
+
+        var validators = CollectFluentValidationRules(compilation);
+        var requestTypeList = requestTypes.Where(t => t is not null).ToList();
+
+        var tsSb = new StringBuilder();
+        tsSb.AppendLine("// Generated by Shalimar - DO NOT EDIT");
+        tsSb.AppendLine("import type {");
+        foreach (var t in requestTypeList.OrderBy(t => t!.Name, StringComparer.Ordinal))
+            tsSb.AppendLine($"    {t!.Name},");
+        tsSb.AppendLine("} from './shalimar-types.g'");
+        tsSb.AppendLine();
+
+        foreach (var type in requestTypeList.OrderBy(t => t!.Name, StringComparer.Ordinal))
+        {
+            ValidatorRules rules;
+            if (!validators.TryGetValue(type!, out rules) || rules is null)
+                rules = new ValidatorRules();
+            tsSb.AppendLine($"export const {type!.Name}Defaults: {type!.Name} = {EmitDefaultsForType(type!, rules)}");
+            tsSb.AppendLine();
+        }
+
+        tsSb.AppendLine("export const defaults = {");
+        foreach (var type in requestTypeList.OrderBy(t => t!.Name, StringComparer.Ordinal))
+            tsSb.AppendLine($"    {type!.Name}: {type!.Name}Defaults,");
+        tsSb.AppendLine("} as const");
+        tsSb.AppendLine();
+
+        var csSb = new StringBuilder();
+        csSb.AppendLine("// <auto-generated/>");
+        csSb.AppendLine("/*");
+        csSb.AppendLine("SHALIMAR_TS: shalimar-defaults.g.ts");
+        csSb.Append(tsSb);
+        csSb.AppendLine("END_SHALIMAR_TS");
+        csSb.AppendLine("*/");
+
+        context.AddSource("ShalimarDefaults.g.cs", SourceText.From(csSb.ToString(), Encoding.UTF8));
+    }
+
+    private static Dictionary<INamedTypeSymbol, ValidatorRules> CollectFluentValidationRules(Compilation compilation)
+    {
+        var abstractValidator = compilation.GetTypeByMetadataName("FluentValidation.AbstractValidator`1");
+        if (abstractValidator is null)
+            return new Dictionary<INamedTypeSymbol, ValidatorRules>(SymbolEqualityComparer.Default);
+
+        var validators = new Dictionary<INamedTypeSymbol, ValidatorRules>(SymbolEqualityComparer.Default);
+
+        foreach (var type in GetAllNamedTypes(compilation.Assembly.GlobalNamespace))
+        {
+            if (!TryGetAbstractValidatorTarget(type, abstractValidator, out var target))
+                continue;
+
+            if (target is null) continue;
+            var rules = ParseValidatorSyntax(type);
+            validators[target] = rules;
+        }
+
+        return validators;
+    }
+
+    private static IEnumerable<INamedTypeSymbol> GetAllNamedTypes(INamespaceSymbol ns)
+    {
+        foreach (var t in ns.GetTypeMembers())
+        {
+            yield return t;
+            foreach (var nested in GetAllNestedTypes(t))
+                yield return nested;
+        }
+
+        foreach (var child in ns.GetNamespaceMembers())
+        {
+            foreach (var t in GetAllNamedTypes(child))
+                yield return t;
+        }
+    }
+
+    private static IEnumerable<INamedTypeSymbol> GetAllNestedTypes(INamedTypeSymbol type)
+    {
+        foreach (var t in type.GetTypeMembers())
+        {
+            yield return t;
+            foreach (var nested in GetAllNestedTypes(t))
+                yield return nested;
+        }
+    }
+
+    private static bool TryGetAbstractValidatorTarget(INamedTypeSymbol candidate, INamedTypeSymbol abstractValidator, out INamedTypeSymbol? target)
+    {
+        target = null;
+        for (var b = candidate.BaseType; b is not null; b = b.BaseType)
+        {
+            if (!SymbolEqualityComparer.Default.Equals(b.OriginalDefinition, abstractValidator))
+                continue;
+            target = (INamedTypeSymbol)b.TypeArguments[0];
+            return true;
+        }
+        return false;
+    }
+
+    private static ValidatorRules ParseValidatorSyntax(INamedTypeSymbol validatorType)
+    {
+        var rules = new ValidatorRules();
+        var syntaxRef = validatorType.DeclaringSyntaxReferences.FirstOrDefault();
+        if (syntaxRef is null) return rules;
+
+        var classDecl = syntaxRef.GetSyntax() as ClassDeclarationSyntax;
+        if (classDecl is null) return rules;
+
+        var boolMethods = classDecl.Members
+            .OfType<MethodDeclarationSyntax>()
+            .Where(m => m.ReturnType is PredefinedTypeSyntax pts && pts.Keyword.IsKind(SyntaxKind.BoolKeyword))
+            .ToDictionary(m => m.Identifier.ValueText, m => m, StringComparer.Ordinal);
+
+        foreach (var ctor in classDecl.Members.OfType<ConstructorDeclarationSyntax>())
+        {
+            if (ctor.Body is null) continue;
+            foreach (var stmt in ctor.Body.Statements.OfType<ExpressionStatementSyntax>())
+            {
+                if (stmt.Expression is not InvocationExpressionSyntax inv) continue;
+                var chain = UnwindFluentChain(inv);
+                if (chain.Count == 0) continue;
+
+                var root = chain[0];
+                if (root.MethodName != "RuleFor" && root.MethodName != "RuleForEach") continue;
+                if (root.Args.Count == 0) continue;
+
+                var prop = TryExtractPropertyNameFromLambda(root.Args[0].Expression);
+                if (prop is null) continue;
+
+                var propKey = ToCamelCase(prop);
+                PropertyRules pr;
+                if (!rules.Properties.TryGetValue(propKey, out pr))
+                {
+                    pr = new PropertyRules();
+                    rules.Properties[propKey] = pr;
+                }
+
+                pr.AppliesToEachElement = root.MethodName == "RuleForEach";
+
+                foreach (var step in chain.Skip(1))
+                {
+                    switch (step.MethodName)
+                    {
+                        case "NotEmpty":
+                            pr.NotEmpty = true;
+                            break;
+                        case "NotNull":
+                            pr.NotNull = true;
+                            break;
+                        case "MaximumLength":
+                            if (step.Args.Count == 1 && step.Args[0].Expression is LiteralExpressionSyntax lit && lit.IsKind(SyntaxKind.NumericLiteralExpression))
+                                pr.MaxLength = Convert.ToInt32(lit.Token.Value);
+                            break;
+                        case "MinimumLength":
+                            if (step.Args.Count == 1 && step.Args[0].Expression is LiteralExpressionSyntax litMin && litMin.IsKind(SyntaxKind.NumericLiteralExpression))
+                                pr.MinLength = Convert.ToInt32(litMin.Token.Value);
+                            break;
+                        case "GreaterThanOrEqualTo":
+                            if (step.Args.Count == 1 && step.Args[0].Expression is LiteralExpressionSyntax litGte && litGte.IsKind(SyntaxKind.NumericLiteralExpression))
+                                pr.MinNumber = Convert.ToInt64(litGte.Token.Value);
+                            break;
+                        case "Must":
+                            if (step.Args.Count == 1 && step.Args[0].Expression is IdentifierNameSyntax ident)
+                            {
+                                MethodDeclarationSyntax m;
+                                if (boolMethods.TryGetValue(ident.Identifier.ValueText, out m))
+                                {
+                                    var allowed = ExtractStringLiterals(m).Distinct(StringComparer.Ordinal).ToList();
+                                    if (allowed.Count > 0)
+                                        pr.AllowedValues = allowed;
+                                }
+                            }
+                            break;
+                    }
+                }
+            }
+        }
+
+        return rules;
+    }
+
+    private sealed class FluentCall
+    {
+        public string MethodName { get; }
+        public SeparatedSyntaxList<ArgumentSyntax> Args { get; }
+        public FluentCall(string methodName, SeparatedSyntaxList<ArgumentSyntax> args)
+        {
+            MethodName = methodName;
+            Args = args;
+        }
+    }
+
+    private static List<FluentCall> UnwindFluentChain(InvocationExpressionSyntax invocation)
+    {
+        var output = new List<FluentCall>();
+        InvocationExpressionSyntax current = invocation;
+
+        while (true)
+        {
+            string name = null!;
+            if (current.Expression is MemberAccessExpressionSyntax ma)
+                name = ma.Name.Identifier.ValueText;
+            else if (current.Expression is IdentifierNameSyntax id)
+                name = id.Identifier.ValueText;
+            else
+                break;
+
+            output.Add(new FluentCall(name, current.ArgumentList.Arguments));
+
+            if (current.Expression is MemberAccessExpressionSyntax ma2 && ma2.Expression is InvocationExpressionSyntax nextInv)
+                current = nextInv;
+            else
+                break;
+        }
+
+        output.Reverse();
+        return output;
+    }
+
+    private static string? TryExtractPropertyNameFromLambda(ExpressionSyntax expr)
+    {
+        if (expr is SimpleLambdaExpressionSyntax simple && simple.ExpressionBody is MemberAccessExpressionSyntax ma)
+            return ma.Name.Identifier.ValueText;
+        if (expr is ParenthesizedLambdaExpressionSyntax paren && paren.ExpressionBody is MemberAccessExpressionSyntax ma2)
+            return ma2.Name.Identifier.ValueText;
+        return null;
+    }
+
+    private static IEnumerable<string> ExtractStringLiterals(MethodDeclarationSyntax method)
+    {
+        if (method.Body is null) yield break;
+        foreach (var lit in method.Body.DescendantNodes().OfType<LiteralExpressionSyntax>())
+        {
+            if (!lit.IsKind(SyntaxKind.StringLiteralExpression)) continue;
+            var s = lit.Token.ValueText;
+            if (!string.IsNullOrWhiteSpace(s))
+                yield return s;
+        }
+    }
+
+    private static string ToCamelCase(string s)
+    {
+        if (string.IsNullOrEmpty(s)) return s;
+        if (s.Length == 1) return s.ToLowerInvariant();
+        return char.ToLowerInvariant(s[0]) + s.Substring(1);
+    }
+
+    private static string EmitZodSchemaForType(INamedTypeSymbol type, ValidatorRules rules)
+    {
+        var props = type.GetMembers()
+            .OfType<IPropertySymbol>()
+            .Where(p => p.DeclaredAccessibility == Accessibility.Public && !p.IsStatic)
+            .OrderBy(p => p.Name, StringComparer.Ordinal)
+            .ToList();
+
+        var sb = new StringBuilder();
+        sb.AppendLine("z.object({");
+        foreach (var p in props)
+        {
+            var name = ToCamelCase(p.Name);
+            PropertyRules pr;
+            if (!rules.Properties.TryGetValue(name, out pr) || pr is null)
+                pr = new PropertyRules();
+            sb.Append("    ");
+            sb.Append(name);
+            sb.Append(": ");
+            sb.Append(EmitZodForProperty(p, pr));
+            sb.AppendLine(",");
+        }
+        sb.Append("})");
+        return sb.ToString();
+    }
+
+    private static string EmitDefaultsForType(INamedTypeSymbol type, ValidatorRules rules)
+    {
+        var props = type.GetMembers()
+            .OfType<IPropertySymbol>()
+            .Where(p => p.DeclaredAccessibility == Accessibility.Public && !p.IsStatic)
+            .OrderBy(p => p.Name, StringComparer.Ordinal)
+            .ToList();
+
+        var sb = new StringBuilder();
+        sb.AppendLine("{");
+        foreach (var p in props)
+        {
+            var name = ToCamelCase(p.Name);
+            PropertyRules pr;
+            if (!rules.Properties.TryGetValue(name, out pr) || pr is null)
+                pr = new PropertyRules();
+            sb.Append("    ");
+            sb.Append(name);
+            sb.Append(": ");
+            sb.Append(EmitDefaultForProperty(p, pr));
+            sb.AppendLine(",");
+        }
+        sb.Append("}");
+        return sb.ToString();
+    }
+
+    private static string EmitZodForProperty(IPropertySymbol prop, PropertyRules rules)
+    {
+        var t = prop.Type;
+        var isNullable = IsNullable(prop);
+
+        string schema;
+        if (IsString(t))
+        {
+            if (rules.AllowedValues is not null && rules.AllowedValues.Count > 0)
+            {
+                schema = $"z.enum([{string.Join(", ", rules.AllowedValues.Select(v => $"'{v}'"))}])";
+            }
+            else
+            {
+                schema = "z.string()";
+            }
+
+            if (rules.NotEmpty)
+                schema += ".min(1)";
+            if (rules.MinLength is not null)
+                schema += $".min({rules.MinLength.Value})";
+            if (rules.MaxLength is not null)
+                schema += $".max({rules.MaxLength.Value})";
+        }
+        else if (IsNumeric(t))
+        {
+            schema = "z.number()";
+            if (rules.MinNumber is not null)
+                schema += $".min({rules.MinNumber.Value})";
+        }
+        else if (IsBool(t))
+        {
+            schema = "z.boolean()";
+        }
+        else if (IsStringArrayLike(t))
+        {
+            var element = "z.string()";
+            if (rules.AppliesToEachElement && rules.NotEmpty)
+                element += ".min(1)";
+            schema = $"z.array({element})";
+            if (!rules.AppliesToEachElement && rules.NotEmpty)
+                schema += ".min(1)";
+        }
+        else
+        {
+            schema = "z.any()";
+        }
+
+        if (isNullable && !rules.NotNull)
+            schema += ".nullable()";
+
+        return schema;
+    }
+
+    private static string EmitDefaultForProperty(IPropertySymbol prop, PropertyRules rules)
+    {
+        var isNullable = IsNullable(prop);
+        if (isNullable && !rules.NotNull && !rules.NotEmpty)
+            return "null";
+
+        var t = prop.Type;
+        if (IsString(t)) return "''";
+        if (IsNumeric(t)) return "0";
+        if (IsBool(t)) return "false";
+        if (IsStringArrayLike(t)) return "[]";
+        return "null as any";
+    }
+
+    private static bool IsNullable(IPropertySymbol prop)
+    {
+        if (prop.NullableAnnotation == NullableAnnotation.Annotated)
+            return true;
+
+        var named = prop.Type as INamedTypeSymbol;
+        if (named is not null && named.IsGenericType && named.ConstructedFrom.SpecialType == SpecialType.System_Nullable_T)
+            return true;
+
+        return false;
+    }
+
+    private static bool IsString(ITypeSymbol t) => t.SpecialType == SpecialType.System_String;
+    private static bool IsBool(ITypeSymbol t) => t.SpecialType == SpecialType.System_Boolean;
+    private static bool IsNumeric(ITypeSymbol t) =>
+        t.SpecialType == SpecialType.System_Int32 ||
+        t.SpecialType == SpecialType.System_Int64 ||
+        t.SpecialType == SpecialType.System_Double ||
+        t.SpecialType == SpecialType.System_Single ||
+        t.SpecialType == SpecialType.System_Decimal;
+
+    private static bool IsStringArrayLike(ITypeSymbol t)
+    {
+        if (t is IArrayTypeSymbol arr)
+            return arr.ElementType.SpecialType == SpecialType.System_String;
+
+        var named = t as INamedTypeSymbol;
+        if (named is null || !named.IsGenericType || named.TypeArguments.Length != 1)
+            return false;
+
+        var arg = named.TypeArguments[0];
+        if (arg.SpecialType != SpecialType.System_String)
+            return false;
+
+        var name = named.ConstructedFrom.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+        return name.IndexOf("System.Collections.Generic.IReadOnlyList", StringComparison.Ordinal) >= 0 ||
+               name.IndexOf("System.Collections.Generic.List", StringComparison.Ordinal) >= 0 ||
+               name.IndexOf("System.Collections.Generic.IEnumerable", StringComparison.Ordinal) >= 0;
     }
 
     // Using classes instead of records for netstandard2.0 compatibility

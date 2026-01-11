@@ -263,6 +263,268 @@ public sealed record ActivityEvent(string Kind);
     }
 
     [Fact]
+    public void Generator_Emits_Typed_Route_Methods_With_Constraints()
+    {
+        var source = """
+using System;
+
+namespace Shalimar
+{
+    public static class RouteBuilderExtensions
+    {
+        public static RouteHandlerBuilder AsComponent<TProps>(this RouteHandlerBuilder builder) => builder;
+    }
+}
+
+public sealed class RouteHandlerBuilder
+{
+    public RouteHandlerBuilder WithName(string name) => this;
+}
+
+public sealed class WebApplication
+{
+    public RouteHandlerBuilder MapGet(string pattern, Delegate handler) => new();
+}
+
+namespace TestApp;
+
+public static class App
+{
+    public static void Configure(WebApplication app)
+    {
+        app.MapGet("/accounts/{accountId:guid}", () => new AccountProps("Account", Guid.Empty))
+            .AsComponent<AccountProps>();
+
+        app.MapGet("/tasks/{taskId:int}", () => new TaskProps("Task", 123))
+            .AsComponent<TaskProps>();
+    }
+}
+
+public sealed record AccountProps(string Message, Guid AccountId);
+public sealed record TaskProps(string Message, int TaskId);
+""";
+
+        var syntaxTree = CSharpSyntaxTree.ParseText(source, CSharpParseOptions.Default);
+
+        var references = new[]
+        {
+            MetadataReference.CreateFromFile(typeof(object).Assembly.Location),
+            MetadataReference.CreateFromFile(typeof(Enumerable).Assembly.Location),
+            MetadataReference.CreateFromFile(typeof(Guid).Assembly.Location),
+        };
+
+        var compilation = CSharpCompilation.Create(
+            assemblyName: "TestApp",
+            syntaxTrees: new[] { syntaxTree },
+            references: references,
+            options: new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary, nullableContextOptions: NullableContextOptions.Enable));
+
+        var generator = new ShalimarGenerator();
+        GeneratorDriver driver = CSharpGeneratorDriver.Create(generator);
+        driver = driver.RunGeneratorsAndUpdateCompilation(compilation, out var outputCompilation, out var diagnostics);
+
+        Assert.Empty(diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error));
+
+        var generated = outputCompilation.SyntaxTrees
+            .Where(t => t != syntaxTree)
+            .Select(t => t.ToString())
+            .ToImmutableArray();
+
+        var routes = Assert.Single(generated, t => t.Contains("namespace Shalimar.Generated;", StringComparison.Ordinal) && t.Contains("class Routes", StringComparison.Ordinal));
+
+        Assert.Contains("public static string AccountProps => \"/accounts/{accountId:guid}\";", routes, StringComparison.Ordinal);
+        Assert.Contains("public static string TaskProps => \"/tasks/{taskId:int}\";", routes, StringComparison.Ordinal);
+
+        // Typed helpers (constraint-driven parameter types).
+        Assert.Contains("AccountPropsPath(global::System.Guid", routes, StringComparison.Ordinal);
+        Assert.Contains("TaskPropsPath(global::System.Int32", routes, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Generator_Emits_Behaviors_Class_For_Component_Scoped_Modes()
+    {
+        var source = """
+using System;
+
+namespace Shalimar
+{
+    public sealed record Deferred<T>(string Href);
+    public sealed record Component<TProps>(TProps Props);
+    public sealed record ShalimarBehaviors(System.Collections.Generic.IReadOnlyList<string> DeferredHrefs, System.Collections.Generic.IReadOnlyList<string> LazyHrefs, System.Collections.Generic.IReadOnlyList<string> StreamedHrefs, System.Collections.Generic.IReadOnlyList<string> SseHrefs);
+    public static class RouteBuilderExtensions
+    {
+        public static RouteHandlerBuilder AsComponent<TProps>(this RouteHandlerBuilder builder) => builder;
+        public static RouteHandlerBuilder ForComponent<TProps>(this RouteHandlerBuilder builder) => builder;
+        public static RouteHandlerBuilder AsDeferred<T>(this RouteHandlerBuilder builder) => builder;
+    }
+}
+
+public sealed class RouteHandlerBuilder
+{
+    public RouteHandlerBuilder WithName(string name) => this;
+}
+
+public sealed class WebApplication
+{
+    public RouteHandlerBuilder MapGet(string pattern, Delegate handler) => new();
+}
+
+namespace TestApp;
+
+public static class App
+{
+    public static void Configure(WebApplication app)
+    {
+        app.MapGet("/", () => new DashboardProps(new Shalimar.Component<AgentPanelProps>(new AgentPanelProps(new Shalimar.Deferred<CrmInsights>("/crm/insights")))))
+            .AsComponent<DashboardProps>();
+
+        app.MapGet("/crm/insights", () => new CrmInsights("ok"))
+            .ForComponent<AgentPanelProps>()
+            .AsDeferred<CrmInsights>();
+    }
+}
+
+public sealed record CrmInsights(string Summary);
+public sealed record AgentPanelProps(Shalimar.Deferred<CrmInsights> Insights);
+public sealed record DashboardProps(Shalimar.Component<AgentPanelProps> AgentPanel);
+""";
+
+        var syntaxTree = CSharpSyntaxTree.ParseText(source, CSharpParseOptions.Default);
+
+        var references = new[]
+        {
+            MetadataReference.CreateFromFile(typeof(object).Assembly.Location),
+            MetadataReference.CreateFromFile(typeof(Enumerable).Assembly.Location),
+        };
+
+        var compilation = CSharpCompilation.Create(
+            assemblyName: "TestApp",
+            syntaxTrees: new[] { syntaxTree },
+            references: references,
+            options: new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary, nullableContextOptions: NullableContextOptions.Enable));
+
+        var generator = new ShalimarGenerator();
+        GeneratorDriver driver = CSharpGeneratorDriver.Create(generator);
+        driver = driver.RunGeneratorsAndUpdateCompilation(compilation, out var outputCompilation, out var diagnostics);
+
+        Assert.Empty(diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error));
+
+        var generated = outputCompilation.SyntaxTrees
+            .Where(t => t != syntaxTree)
+            .Select(t => t.ToString())
+            .ToImmutableArray();
+
+        var behaviors = Assert.Single(generated, t => t.Contains("public static class Behaviors", StringComparison.Ordinal));
+        Assert.Contains("public static class AgentPanelProps", behaviors, StringComparison.Ordinal);
+        Assert.Contains("PrefetchDeferred", behaviors, StringComparison.Ordinal);
+        Assert.Contains("\"/crm/insights\"", behaviors, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Generator_Emits_Zod_Schemas_And_Defaults_From_FluentValidation()
+    {
+        var source = """
+using System;
+
+namespace FluentValidation
+{
+    public interface IRuleBuilder<T, TProperty>
+    {
+        IRuleBuilder<T, TProperty> NotEmpty();
+        IRuleBuilder<T, TProperty> NotNull();
+        IRuleBuilder<T, TProperty> MaximumLength(int max);
+        IRuleBuilder<T, TProperty> GreaterThanOrEqualTo(int min);
+        IRuleBuilder<T, TProperty> Must(Func<TProperty, bool> predicate);
+        IRuleBuilder<T, TProperty> When(Func<T, bool> predicate);
+    }
+
+    public abstract class AbstractValidator<T>
+    {
+        protected IRuleBuilder<T, TProperty> RuleFor<TProperty>(Func<T, TProperty> expr) => default!;
+        protected IRuleBuilder<T, TProperty> RuleForEach<TProperty>(Func<T, TProperty> expr) => default!;
+    }
+}
+
+namespace Shalimar
+{
+    public static class RouteBuilderExtensions
+    {
+        public static RouteHandlerBuilder AsMutation<TReq, TRes>(this RouteHandlerBuilder builder) => builder;
+    }
+}
+
+public sealed class RouteHandlerBuilder
+{
+    public RouteHandlerBuilder WithName(string name) => this;
+}
+
+public sealed class WebApplication
+{
+    public RouteHandlerBuilder MapPost(string pattern, Delegate handler) => new();
+}
+
+namespace TestApp;
+
+public static class App
+{
+    public static void Configure(WebApplication app)
+    {
+        app.MapPost("/crm/tasks", (CreateTaskRequest req) => new TaskDto(req.Title))
+            .AsMutation<CreateTaskRequest, TaskDto>();
+    }
+}
+
+public sealed record CreateTaskRequest(string Title, string? Priority, int? EstimateMinutes);
+public sealed record TaskDto(string Title);
+
+public sealed class CreateTaskRequestValidator : FluentValidation.AbstractValidator<CreateTaskRequest>
+{
+    public CreateTaskRequestValidator()
+    {
+        RuleFor(x => x.Title).NotEmpty().MaximumLength(200);
+        RuleFor(x => x.EstimateMinutes).GreaterThanOrEqualTo(0);
+        RuleFor(x => x.Priority).Must(BePriority).When(x => x.Priority != null);
+    }
+
+    private static bool BePriority(string? p) => p is null || p is "low" or "medium" or "high";
+}
+""";
+
+        var syntaxTree = CSharpSyntaxTree.ParseText(source, CSharpParseOptions.Default);
+
+        var references = new[]
+        {
+            MetadataReference.CreateFromFile(typeof(object).Assembly.Location),
+            MetadataReference.CreateFromFile(typeof(Enumerable).Assembly.Location),
+        };
+
+        var compilation = CSharpCompilation.Create(
+            assemblyName: "TestApp",
+            syntaxTrees: new[] { syntaxTree },
+            references: references,
+            options: new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary, nullableContextOptions: NullableContextOptions.Enable));
+
+        var generator = new ShalimarGenerator();
+        GeneratorDriver driver = CSharpGeneratorDriver.Create(generator);
+        driver = driver.RunGeneratorsAndUpdateCompilation(compilation, out var outputCompilation, out var diagnostics);
+
+        Assert.Empty(diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error));
+
+        var generated = outputCompilation.SyntaxTrees
+            .Where(t => t != syntaxTree)
+            .Select(t => t.ToString())
+            .ToImmutableArray();
+
+        var zod = Assert.Single(generated, t => t.Contains("SHALIMAR_TS: shalimar-zod-schemas.g.ts", StringComparison.Ordinal));
+        Assert.Contains("import { z } from 'zod'", zod, StringComparison.Ordinal);
+        Assert.Contains("export const CreateTaskRequestSchema", zod, StringComparison.Ordinal);
+        Assert.Contains(".max(200)", zod, StringComparison.Ordinal);
+
+        var defaults = Assert.Single(generated, t => t.Contains("SHALIMAR_TS: shalimar-defaults.g.ts", StringComparison.Ordinal));
+        Assert.Contains("export const CreateTaskRequestDefaults", defaults, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void Generator_Emits_SseRefs_And_Sse_Generic_Type()
     {
         var source = """

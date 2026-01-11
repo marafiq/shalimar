@@ -94,6 +94,44 @@ public class FeatureCoverageTests(IntegrationAppFixture fixture)
     }
 
     [Fact]
+    public async Task Tasks_Create_ClientValidation_MaxLength_Works()
+    {
+        var (context, page, diag) = await fixture.NewPageAsync(nameof(Tasks_Create_ClientValidation_MaxLength_Works));
+        try
+        {
+            await fixture.ResetCrmAsync();
+
+            var createRequests = 0;
+            await page.RouteAsync("**/crm/tasks", async route =>
+            {
+                createRequests++;
+                await route.ContinueAsync();
+            });
+
+            await page.GotoAsync($"{fixture.BaseUrl}/tasks?drawer=new&status=todo&page=1&pageSize=10");
+            await page.WaitForLoadStateAsync(LoadState.NetworkIdle);
+
+            var tooLongTitle = new string('x', 250);
+            await page.GetByLabel("Title").FillAsync(tooLongTitle);
+            await page.GetByTestId("create-save").ClickAsync();
+
+            await Assertions.Expect(page.GetByTestId("create-title-error")).ToBeVisibleAsync();
+            await Assertions.Expect(page.GetByTestId("create-save")).ToBeVisibleAsync();
+            Assert.Equal(0, createRequests);
+        }
+        catch (Exception ex)
+        {
+            await diag.CaptureFailureAsync(page, ex);
+            throw;
+        }
+        finally
+        {
+            await diag.FlushAsync();
+            await context.DisposeAsync();
+        }
+    }
+
+    [Fact]
     public async Task Dashboard_Sse_Start_Stop_Works()
     {
         var (context, page, diag) = await fixture.NewPageAsync(nameof(Dashboard_Sse_Start_Stop_Works));

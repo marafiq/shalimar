@@ -59,11 +59,13 @@ app.MapGet("/", async (HttpContext http, CrmRepository repo) =>
     var overdue = snapshot.Tasks.Count(t => t.DueAt is not null && t.DueAt.Value < DateTimeOffset.UtcNow && t.Status != "done");
 
     // Compose nested props explicitly: modes belong to a composed child component.
-    var agentPanel = new Component<DashboardAgentPanelProps>(new DashboardAgentPanelProps(
+    var agentPanel = new Component<DashboardAgentPanelProps>(
+        new DashboardAgentPanelProps(
         Insights: Shalimar.Generated.Components.DashboardAgentPanelProps.Deferred.CrmInsights(),
         Forecast: Shalimar.Generated.Components.DashboardAgentPanelProps.Lazy.CrmForecast(),
         ActivitySse: Shalimar.Generated.Components.DashboardAgentPanelProps.Sse.CrmActivitySse(),
-        ActivityExport: Shalimar.Generated.Components.DashboardAgentPanelProps.Stream.CrmActivityExport()));
+        ActivityExport: Shalimar.Generated.Components.DashboardAgentPanelProps.Stream.CrmActivityExport()),
+        Shalimar.Generated.Behaviors.DashboardAgentPanelProps.PrefetchDeferred());
 
     var props = new DashboardProps(
         Message: "Welcome to Shalimar",

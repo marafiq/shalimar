@@ -10,5 +10,5 @@ public interface IComponentProps { }
 /// Explicit composition wrapper: allows a parent props model to embed a child component's props,
 /// including the child's Deferred/Lazy/Stream/SSE handles, without magic strings.
 /// </summary>
-public sealed record Component<TProps>(TProps Props) where TProps : IComponentProps;
+public sealed record Component<TProps>(TProps Props, ShalimarBehaviors? Behaviors = null) where TProps : IComponentProps;
 

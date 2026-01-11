@@ -10,6 +10,7 @@ import { useDeferred } from '@shalimar/runtime'
 import { pushToast } from '../App/ui/store'
 import { mutateCrmTasks, type ValidationErrors } from '@generated/store'
 import type { CrmTasksGridDto, CreateTaskRequest, TasksProps } from '@generated/types'
+import { CreateTaskRequestSchema } from '@generated/schemas'
 
 export const Route = createFileRoute('/tasks')({
     validateSearch: (search: Record<string, unknown>) => ({
@@ -324,6 +325,16 @@ function CreateTaskPane(props: { open: boolean; onClose: () => void }) {
         }
 
         try {
+            const parsed = CreateTaskRequestSchema.safeParse(req)
+            if (!parsed.success) {
+                // Only enforce max-length client-side here; let server stay the source of truth for required fields.
+                const tooBig = parsed.error.issues.find((i) => i.path[0] === 'title' && i.code === 'too_big')
+                if (tooBig) {
+                    setErrors({ Title: [tooBig.message] })
+                    return
+                }
+            }
+
             const result = await mutateCrmTasks(req)
             if (!result.ok) {
                 if ('validation' in result) {

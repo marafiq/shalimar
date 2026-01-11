@@ -26,6 +26,32 @@ async function fetchJson(href: string) {
     return (await res.json()) as unknown
 }
 
+export function prefetchLazy(ref: { href: string }) {
+    const href = ref.href
+    const current = getEntry(href)
+    if (current.status === 'pending' || current.status === 'resolved') return
+
+    const promise = fetchJson(href)
+        .then((value) => {
+            lazyStore.setState((s) => {
+                const now = s[href]
+                if (!now || now.status !== 'pending' || now.promise !== promise) return s
+                return { ...s, [href]: { status: 'resolved', value } }
+            })
+            return value
+        })
+        .catch((error) => {
+            lazyStore.setState((s) => {
+                const now = s[href]
+                if (!now || now.status !== 'pending' || now.promise !== promise) return s
+                return { ...s, [href]: { status: 'rejected', error } }
+            })
+            throw error
+        })
+
+    lazyStore.setState((s) => ({ ...s, [href]: { status: 'pending', promise } }))
+}
+
 /**
  * Manage a lazy handle that only fetches when `load()` is called.
  *
