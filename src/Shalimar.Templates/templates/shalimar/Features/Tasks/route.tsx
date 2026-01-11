@@ -1,22 +1,30 @@
-import { createFileRoute, Link } from '@tanstack/react-router'
+import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
 import { Button, Heading, Text, TextField } from '@react-spectrum/s2'
 import { useMemo, useState } from 'react'
 import { useStore } from '@tanstack/react-store'
-import { createTask, crmStore, ensureAccounts, ensureTasks, ensureUsers, setTaskStatus } from '../../Client/store'
+import { crmStore, ensureAccounts, ensureTasks, ensureUsers, setTaskStatus } from '../../Client/store'
 import type { TaskStatus } from '../../Client/crm/types'
+import { PageSkeleton } from '../../Client/ui/Skeletons'
+import { IconPlus } from '../../Client/ui/icons'
+import { TaskDrawer } from './_components/TaskDrawer'
 
 export const Route = createFileRoute('/tasks')({
+    validateSearch: (search: Record<string, unknown>) => ({
+        drawer: typeof search.drawer === 'string' ? search.drawer : undefined,
+    }),
     loader: async () => {
         await Promise.all([ensureUsers(), ensureAccounts(), ensureTasks()])
         return null
     },
+    pendingComponent: () => <PageSkeleton />,
     component: TasksRoute,
 })
 
 function TasksRoute() {
     const { users, accounts, tasks } = useStore(crmStore)
+    const navigate = useNavigate()
+    const { drawer } = Route.useSearch()
     const [query, setQuery] = useState('')
-    const [newTitle, setNewTitle] = useState('')
 
     const list = useMemo(() => Object.values(tasks), [tasks])
     const filtered = useMemo(() => {
@@ -25,21 +33,22 @@ function TasksRoute() {
         return list.filter((t) => t.title.toLowerCase().includes(q))
     }, [list, query])
 
-    async function onCreate() {
-        const title = newTitle.trim()
-        if (!title) return
-        setNewTitle('')
-        await createTask(title)
-    }
-
     return (
         <div>
             <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
                 <div>
                     <Heading level={1}>Tasks</Heading>
-                    <Text>Mock tasks (API calls will be replaced by generated Shalimar hooks later).</Text>
+                    <Text>
+                        List view (store-backed). Create/edit happens in the right-side drawer to establish a consistent
+                        “agent work surface”.
+                    </Text>
                 </div>
                 <div className="flex gap-2">
+                    <Button onPress={() => navigate({ to: '/tasks', search: { drawer: 'new' } })}>
+                        <span className="inline-flex items-center gap-2">
+                            <IconPlus className="h-4 w-4" /> New task
+                        </span>
+                    </Button>
                     <Button elementType={Link as any} to="/tasks/board" isQuiet>
                         Board view
                     </Button>
@@ -51,15 +60,6 @@ function TasksRoute() {
                     <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
                         <div className="max-w-sm">
                             <TextField label="Search" placeholder="Find tasks…" value={query} onChange={setQuery} />
-                        </div>
-                        <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-end">
-                            <TextField
-                                label="New task"
-                                placeholder="Write a task title…"
-                                value={newTitle}
-                                onChange={setNewTitle}
-                            />
-                            <Button onPress={onCreate}>Add</Button>
                         </div>
                     </div>
 
@@ -80,8 +80,8 @@ function TasksRoute() {
                                     <StatusButton taskId={t.id} status={t.status} target="todo" onSet={setTaskStatus} />
                                     <StatusButton taskId={t.id} status={t.status} target="in_progress" onSet={setTaskStatus} />
                                     <StatusButton taskId={t.id} status={t.status} target="done" onSet={setTaskStatus} />
-                                    <Button elementType={Link as any} to={`/tasks/${t.id}`} isQuiet>
-                                        Details
+                                    <Button onPress={() => navigate({ to: '/tasks', search: { drawer: t.id } })} isQuiet>
+                                        Open
                                     </Button>
                                 </div>
                             </div>
@@ -103,6 +103,12 @@ function TasksRoute() {
                     </div>
                 </aside>
             </div>
+
+            <TaskDrawer
+                open={typeof drawer === 'string' && drawer.length > 0}
+                drawer={drawer}
+                onClose={() => navigate({ to: '/tasks', search: {} })}
+            />
         </div>
     )
 }

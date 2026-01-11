@@ -3,12 +3,14 @@ import { Button, Heading, Text } from '@react-spectrum/s2'
 import { useMemo } from 'react'
 import { useStore } from '@tanstack/react-store'
 import { crmStore, ensureAccounts, ensureUsers } from '../../Client/store'
+import { PageSkeleton } from '../../Client/ui/Skeletons'
 
 export const Route = createFileRoute('/accounts')({
     loader: async () => {
         await Promise.all([ensureUsers(), ensureAccounts()])
         return null
     },
+    pendingComponent: () => <PageSkeleton />,
     component: AccountsRoute,
 })
 

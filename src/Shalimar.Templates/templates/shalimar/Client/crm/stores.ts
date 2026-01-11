@@ -1,5 +1,5 @@
 import { Store } from '@tanstack/store'
-import type { Account, ActivityItem, Contact, Id, Task, TaskStatus, User } from './types'
+import type { Account, ActivityItem, Contact, Id, Task, TaskActor, TaskMessage, TaskStatus, User } from './types'
 import * as api from './mockApi'
 
 export interface CrmState {
@@ -7,6 +7,7 @@ export interface CrmState {
     accounts: Record<Id, Account>
     contactsByAccount: Record<Id, Contact[]>
     tasks: Record<Id, Task>
+    messagesByTask: Record<Id, TaskMessage[]>
     activity: ActivityItem[]
     loaded: {
         users: boolean
@@ -20,6 +21,7 @@ export const crmStore = new Store<CrmState>({
     accounts: {},
     contactsByAccount: {},
     tasks: {},
+    messagesByTask: {},
     activity: [],
     loaded: { users: false, accounts: false, tasks: false },
 })
@@ -62,10 +64,36 @@ export async function createTask(title: string, accountId?: Id) {
     return task
 }
 
+export async function updateTask(taskId: Id, patch: Partial<Pick<Task, 'title' | 'priority' | 'assigneeId' | 'accountId' | 'dueAt'>>) {
+    const updated = await api.updateTask(taskId, patch)
+    if (!updated) return
+    crmStore.setState((s) => ({ ...s, tasks: { ...s.tasks, [updated.id]: updated } }))
+    await refreshActivity()
+}
+
 export async function setTaskStatus(taskId: Id, status: TaskStatus) {
     const updated = await api.updateTaskStatus(taskId, status)
     if (!updated) return
     crmStore.setState((s) => ({ ...s, tasks: { ...s.tasks, [updated.id]: updated } }))
     await refreshActivity()
+}
+
+export async function loadTaskMessages(taskId: Id) {
+    if (crmStore.state.messagesByTask[taskId]) return
+    const msgs = await api.listTaskMessages(taskId)
+    crmStore.setState((s) => ({ ...s, messagesByTask: { ...s.messagesByTask, [taskId]: msgs } }))
+}
+
+export async function postTaskMessage(taskId: Id, actor: TaskActor, body: string) {
+    const msg = await api.postTaskMessage(taskId, actor, body)
+    crmStore.setState((s) => ({
+        ...s,
+        messagesByTask: {
+            ...s.messagesByTask,
+            [taskId]: [...(s.messagesByTask[taskId] ?? []), msg],
+        },
+    }))
+    await refreshActivity()
+    return msg
 }
 

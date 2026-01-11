@@ -1,4 +1,4 @@
-import type { Account, ActivityItem, Contact, Id, Task, TaskStatus, User } from './types'
+import type { Account, ActivityItem, Contact, Id, Task, TaskActor, TaskMessage, TaskStatus, User } from './types'
 
 function nowIso() {
     return new Date().toISOString()
@@ -86,6 +86,37 @@ let tasks: Task[] = [
     },
 ]
 
+let messagesByTask: Record<Id, TaskMessage[]> = {
+    t_1: [
+        {
+            id: 'm_1',
+            taskId: 't_1',
+            ts: nowIso(),
+            actor: 'agent',
+            author: 'Shalimar Agent',
+            body: 'I can draft the outreach email and propose next steps. Who is the best contact at Contoso?',
+        },
+        {
+            id: 'm_2',
+            taskId: 't_1',
+            ts: nowIso(),
+            actor: 'human',
+            author: 'Ava Chen',
+            body: 'Use Riley (VP Eng). Keep it short and propose a 15-min qualification call.',
+        },
+    ],
+    t_2: [
+        {
+            id: 'm_3',
+            taskId: 't_2',
+            ts: nowIso(),
+            actor: 'human',
+            author: 'Noah Patel',
+            body: 'Pull last quarter usage + renewal risks. Highlight top 3 wins and 2 blockers.',
+        },
+    ],
+}
+
 let activity: ActivityItem[] = [
     { id: 'act_1', ts: nowIso(), kind: 'system', summary: 'CRM agent bootstrapped with mock data.' },
 ]
@@ -134,6 +165,16 @@ export async function updateTaskStatus(id: Id, status: TaskStatus): Promise<Task
     return t
 }
 
+export async function updateTask(id: Id, patch: Partial<Pick<Task, 'title' | 'priority' | 'assigneeId' | 'accountId' | 'dueAt'>>): Promise<Task | undefined> {
+    await delay(220)
+    const t = tasks.find((x) => x.id === id)
+    if (!t) return undefined
+    tasks = tasks.map((x) => (x.id === id ? { ...x, ...patch, updatedAt: nowIso() } : x))
+    const updated = tasks.find((x) => x.id === id)!
+    pushActivity(`Updated task "${updated.title}"`)
+    return updated
+}
+
 export async function createTask(title: string, accountId?: Id): Promise<Task> {
     await delay(220)
     const t: Task = {
@@ -147,7 +188,37 @@ export async function createTask(title: string, accountId?: Id): Promise<Task> {
     }
     tasks = [t, ...tasks]
     pushActivity(`Created task "${title}"`)
+    messagesByTask[t.id] = [
+        {
+            id: makeId('m'),
+            taskId: t.id,
+            ts: nowIso(),
+            actor: 'agent',
+            author: 'Shalimar Agent',
+            body: 'New task created. Add context here so I can help you execute it faster.',
+        },
+    ]
     return t
+}
+
+export async function listTaskMessages(taskId: Id): Promise<TaskMessage[]> {
+    await delay(180)
+    return (messagesByTask[taskId] ?? []).toSorted((a, b) => a.ts.localeCompare(b.ts))
+}
+
+export async function postTaskMessage(taskId: Id, actor: TaskActor, body: string): Promise<TaskMessage> {
+    await delay(160)
+    const msg: TaskMessage = {
+        id: makeId('m'),
+        taskId,
+        ts: nowIso(),
+        actor,
+        author: actor === 'agent' ? 'Shalimar Agent' : 'Human',
+        body,
+    }
+    messagesByTask[taskId] = [...(messagesByTask[taskId] ?? []), msg]
+    pushActivity(`${actor === 'agent' ? 'Agent' : 'Human'} replied on task`)
+    return msg
 }
 
 export async function listActivity(): Promise<ActivityItem[]> {

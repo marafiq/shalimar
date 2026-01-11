@@ -38,6 +38,17 @@ export interface Task {
     updatedAt: string
 }
 
+export type TaskActor = 'agent' | 'human'
+
+export interface TaskMessage {
+    id: Id
+    taskId: Id
+    ts: string
+    actor: TaskActor
+    author: string
+    body: string
+}
+
 export interface ActivityItem {
     id: Id
     ts: string

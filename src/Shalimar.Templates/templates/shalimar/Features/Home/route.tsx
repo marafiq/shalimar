@@ -3,12 +3,14 @@ import { Button, Card, CardPreview, Heading, Text, TextField } from '@react-spec
 import { useEffect, useMemo, useState } from 'react'
 import { useStore } from '@tanstack/react-store'
 import { crmStore, ensureAccounts, ensureTasks, ensureUsers, refreshActivity } from '../../Client/store'
+import { PageSkeleton } from '../../Client/ui/Skeletons'
 
 export const Route = createFileRoute('/')({
     loader: async () => {
         await Promise.all([ensureUsers(), ensureAccounts(), ensureTasks(), refreshActivity()])
         return null
     },
+    pendingComponent: () => <PageSkeleton />,
     component: HomeRoute,
 })
 
