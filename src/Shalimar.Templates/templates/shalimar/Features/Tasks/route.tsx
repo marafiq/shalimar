@@ -303,6 +303,9 @@ function CreateTaskPane(props: { open: boolean; onClose: () => void }) {
     const [busy, setBusy] = useState(false)
     const [title, setTitle] = useState('')
     const [prio, setPrio] = useState('medium')
+    const [collaborators, setCollaborators] = useState('')
+    const [tags, setTags] = useState('')
+    const [estimateMinutes, setEstimateMinutes] = useState('')
     const [errors, setErrors] = useState<ValidationErrors | null>(null)
 
     if (!props.open) return null
@@ -312,16 +315,20 @@ function CreateTaskPane(props: { open: boolean; onClose: () => void }) {
         setBusy(true)
         setErrors(null)
 
+        const collaboratorIds = collaborators.trim() ? collaborators.split(',').map((s) => s.trim()) : []
+        const tagList = tags.trim() ? tags.split(',').map((s) => s.trim()) : []
+        const est = estimateMinutes.trim() ? Number(estimateMinutes.trim()) : null
+
         const req: CreateTaskRequest = {
             title,
             priority: prio,
             epicId: epicId ?? null,
             accountId: null,
             assigneeId: null,
-            collaboratorIds: [],
+            collaboratorIds,
             dueAt: null,
-            estimateMinutes: null,
-            tags: [],
+            estimateMinutes: Number.isFinite(est) ? est : null,
+            tags: tagList,
         }
 
         try {
@@ -383,6 +390,47 @@ function CreateTaskPane(props: { open: boolean; onClose: () => void }) {
                                     <option value="high">High</option>
                                 </select>
                             </Field>
+
+                            <TextField
+                                label="Collaborator IDs (comma-separated)"
+                                description="Leave blanks between commas to prove nested RuleForEach validation."
+                                value={collaborators}
+                                onChange={setCollaborators}
+                            />
+
+                            <TextField
+                                label="Tags (comma-separated)"
+                                description="Leave blanks between commas to prove nested RuleForEach validation."
+                                value={tags}
+                                onChange={setTags}
+                            />
+
+                            <TextField
+                                label="Estimate minutes"
+                                description="Try a negative number to trigger server validation."
+                                inputMode="numeric"
+                                value={estimateMinutes}
+                                onChange={setEstimateMinutes}
+                            />
+
+                            {errors ? (
+                                <div
+                                    className="rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-900 dark:text-red-100"
+                                    data-testid="create-error-summary"
+                                >
+                                    <div className="text-xs font-semibold uppercase tracking-wide text-red-700 dark:text-red-200">
+                                        Validation summary
+                                    </div>
+                                    <div className="mt-2 space-y-1">
+                                        {Object.entries(errors).map(([k, v]) => (
+                                            <div key={k} className="flex flex-wrap gap-x-2">
+                                                <span className="font-mono text-xs">{k}</span>
+                                                <span className="text-sm">{v?.[0]}</span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            ) : null}
 
                             {errors ? (
                                 <details className="rounded-xl border border-zinc-200 bg-white p-3 text-sm shadow-sm dark:border-zinc-800 dark:bg-zinc-950/40">

@@ -66,6 +66,47 @@ public class UiSnapshotsTests(IntegrationAppFixture fixture)
     }
 
     [Fact]
+    public async Task Tasks_Create_Shows_Nested_Validation_Errors()
+    {
+        var (context, page, diag) = await fixture.NewPageAsync(nameof(Tasks_Create_Shows_Nested_Validation_Errors));
+        try
+        {
+            await fixture.ResetCrmAsync();
+            await page.GotoAsync($"{fixture.BaseUrl}/tasks?drawer=new&status=todo&page=1&pageSize=10");
+            await page.WaitForLoadStateAsync(LoadState.NetworkIdle);
+
+            // Trigger multiple FluentValidation rules at once (including RuleForEach on arrays).
+            // - Title: required
+            // - CollaboratorIds: contains empty item -> CollaboratorIds[1]
+            // - Tags: contains empty item -> Tags[1]
+            // - EstimateMinutes: negative
+            await page.GetByLabel("Collaborator IDs (comma-separated)").FillAsync("u_1,,u_2");
+            await page.GetByLabel("Tags (comma-separated)").FillAsync("alpha,,beta");
+            await page.GetByLabel("Estimate minutes").FillAsync("-5");
+
+            await page.GetByTestId("create-save").ClickAsync();
+
+            await Assertions.Expect(page.GetByTestId("create-error-summary")).ToBeVisibleAsync();
+            await Assertions.Expect(page.GetByTestId("create-error-summary")).ToContainTextAsync("CollaboratorIds[1]");
+            await Assertions.Expect(page.GetByTestId("create-error-summary")).ToContainTextAsync("Tags[1]");
+            await Assertions.Expect(page.GetByTestId("create-error-summary")).ToContainTextAsync("EstimateMinutes");
+            await Assertions.Expect(page.GetByTestId("create-title-error")).ToBeVisibleAsync();
+
+            await SnapshotAssertions.AssertMatchesAsync(page, diag, nameof(Tasks_Create_Shows_Nested_Validation_Errors), "tasks-create-nested-validation.png");
+        }
+        catch (Exception ex)
+        {
+            await diag.CaptureFailureAsync(page, ex);
+            throw;
+        }
+        finally
+        {
+            await diag.FlushAsync();
+            await context.DisposeAsync();
+        }
+    }
+
+    [Fact]
     public async Task Board_Page()
     {
         await SnapshotRouteAsync(nameof(Board_Page), "/tasks/board", "board.png");
