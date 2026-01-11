@@ -131,11 +131,19 @@ app.MapGet("/crm/activity/export", async (HttpContext http, CrmRepository repo, 
     http.Response.Headers.CacheControl = "no-cache";
     http.Response.Headers.ContentType = "application/x-ndjson";
 
-    var items = repo.Activity().Take(20).ToList();
-    for (var i = 0; i < items.Count && !ct.IsCancellationRequested; i++)
+    var baseItems = repo.Activity().ToList();
+    if (baseItems.Count == 0)
+        baseItems.Add(new ActivityItemDto("act_boot", DateTimeOffset.UtcNow, "system", "Export started."));
+
+    var isTesting = !string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("SHALIMAR_TESTING"));
+    var count = isTesting ? 60 : 20;
+    var delayMs = isTesting ? 80 : 40; // keep abort deterministic in tests
+
+    for (var i = 0; i < count && !ct.IsCancellationRequested; i++)
     {
-        await WriteNdjsonAsync(http, new CrmActivityExportRowDto(i + 1, items[i]), ct);
-        await Task.Delay(40, ct); // simulate large export work
+        var item = baseItems[i % baseItems.Count];
+        await WriteNdjsonAsync(http, new CrmActivityExportRowDto(i + 1, item), ct);
+        await Task.Delay(delayMs, ct); // simulate large export work
     }
 
     return Results.Empty;

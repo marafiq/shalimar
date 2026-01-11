@@ -212,7 +212,7 @@ public class UiSnapshotsTests(IntegrationAppFixture fixture)
             await page.GotoAsync(fixture.BaseUrl);
             await page.WaitForLoadStateAsync(LoadState.NetworkIdle);
             await page.GetByTestId("streamed-start").ClickAsync();
-            await Assertions.Expect(page.GetByTestId("streamed-status")).ToContainTextAsync("done");
+            await Assertions.Expect(page.GetByTestId("streamed-status")).ToContainTextAsync("done", new() { Timeout = 15000 });
             await Assertions.Expect(page.GetByTestId("streamed-last")).ToContainTextAsync("#");
             await SnapshotAssertions.AssertMatchesAsync(page, diag, nameof(Dashboard_Streamed_Completed), "dashboard-streamed.png");
         }

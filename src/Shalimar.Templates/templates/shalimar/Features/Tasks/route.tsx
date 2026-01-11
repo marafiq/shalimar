@@ -18,8 +18,18 @@ export const Route = createFileRoute('/tasks')({
         q: typeof search.q === 'string' ? search.q : '',
         status: typeof search.status === 'string' ? search.status : '',
         priority: typeof search.priority === 'string' ? search.priority : '',
-        page: typeof search.page === 'string' ? Number(search.page) : 1,
-        pageSize: typeof search.pageSize === 'string' ? Number(search.pageSize) : 20,
+        page:
+            typeof search.page === 'number'
+                ? search.page
+                : typeof search.page === 'string'
+                  ? Number(search.page)
+                  : 1,
+        pageSize:
+            typeof search.pageSize === 'number'
+                ? search.pageSize
+                : typeof search.pageSize === 'string'
+                  ? Number(search.pageSize)
+                  : 20,
         skeleton: search.skeleton === '1' || search.skeleton === 'true',
         drawerSkeleton: search.drawerSkeleton === '1' || search.drawerSkeleton === 'true',
         threadSkeleton: search.threadSkeleton === '1' || search.threadSkeleton === 'true',
@@ -187,7 +197,12 @@ function TasksRoute() {
                 <>
                     <CreateTaskPane
                         open={drawer === 'new'}
-                        onClose={() => navigate({ to: '/tasks', search: (s) => ({ ...s, drawer: undefined }) })}
+                        onClose={() =>
+                            navigate({
+                                to: '/tasks',
+                                search: { drawer: undefined, epicId, q, status, priority, page, pageSize },
+                            })
+                        }
                     />
                     <TaskDrawer
                         open={typeof drawer === 'string' && drawer.length > 0 && drawer !== 'new'}
@@ -195,7 +210,12 @@ function TasksRoute() {
                         prefillEpicId={epicId}
                         forceSkeleton={drawerSkeleton}
                         forceThreadSkeleton={threadSkeleton}
-                        onClose={() => navigate({ to: '/tasks', search: (s) => ({ ...s, drawer: undefined }) })}
+                        onClose={() =>
+                            navigate({
+                                to: '/tasks',
+                                search: { drawer: undefined, epicId, q, status, priority, page, pageSize },
+                            })
+                        }
                     />
                 </>
             ) : null}
