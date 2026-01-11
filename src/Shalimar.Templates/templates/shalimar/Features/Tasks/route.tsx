@@ -18,18 +18,17 @@ export const Route = createFileRoute('/tasks')({
         q: typeof search.q === 'string' ? search.q : '',
         status: typeof search.status === 'string' ? search.status : '',
         priority: typeof search.priority === 'string' ? search.priority : '',
-        page:
-            typeof search.page === 'number'
-                ? search.page
-                : typeof search.page === 'string'
-                  ? Number(search.page)
-                  : 1,
-        pageSize:
-            typeof search.pageSize === 'number'
-                ? search.pageSize
-                : typeof search.pageSize === 'string'
-                  ? Number(search.pageSize)
-                  : 20,
+        page: (() => {
+            const raw = typeof search.page === 'number' ? search.page : typeof search.page === 'string' ? Number(search.page) : 1
+            const n = Number.isFinite(raw) ? Math.floor(raw) : 1
+            return n > 0 ? n : 1
+        })(),
+        pageSize: (() => {
+            const raw =
+                typeof search.pageSize === 'number' ? search.pageSize : typeof search.pageSize === 'string' ? Number(search.pageSize) : 20
+            const n = Number.isFinite(raw) ? Math.floor(raw) : 20
+            return Math.min(100, Math.max(5, n > 0 ? n : 20))
+        })(),
         skeleton: search.skeleton === '1' || search.skeleton === 'true',
         drawerSkeleton: search.drawerSkeleton === '1' || search.drawerSkeleton === 'true',
         threadSkeleton: search.threadSkeleton === '1' || search.threadSkeleton === 'true',
@@ -43,7 +42,7 @@ export const Route = createFileRoute('/tasks')({
 })
 
 function TasksRoute() {
-    const { users, epics } = useStore(crmStore)
+    const { epics } = useStore(crmStore)
     const navigate = useNavigate()
     const { drawer, epicId, q, status, priority, page, pageSize, skeleton, drawerSkeleton, threadSkeleton } = Route.useSearch()
     const pathname = useRouterState({ select: (s) => s.location.pathname })

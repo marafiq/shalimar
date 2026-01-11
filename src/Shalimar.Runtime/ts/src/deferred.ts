@@ -40,10 +40,18 @@ export function useDeferred<T>(ref: { href: string }): T {
     if (!entry) {
         const promise = fetchJson(href)
             .then((value) => {
-                deferredStore.setState((s) => ({ ...s, [href]: { status: 'resolved', value } }))
+                deferredStore.setState((s) => {
+                    const now = s[href]
+                    if (!now || now.status !== 'pending' || now.promise !== promise) return s
+                    return { ...s, [href]: { status: 'resolved', value } }
+                })
             })
             .catch((error) => {
-                deferredStore.setState((s) => ({ ...s, [href]: { status: 'rejected', error } }))
+                deferredStore.setState((s) => {
+                    const now = s[href]
+                    if (!now || now.status !== 'pending' || now.promise !== promise) return s
+                    return { ...s, [href]: { status: 'rejected', error } }
+                })
             })
 
         deferredStore.setState((s) => ({ ...s, [href]: { status: 'pending', promise } }))
@@ -66,10 +74,18 @@ export function prefetchDeferred(ref: { href: string }) {
 
     const promise = fetchJson(href)
         .then((value) => {
-            deferredStore.setState((s) => ({ ...s, [href]: { status: 'resolved', value } }))
+            deferredStore.setState((s) => {
+                const now = s[href]
+                if (!now || now.status != 'pending' || now.promise !== promise) return s
+                return { ...s, [href]: { status: 'resolved', value } }
+            })
         })
         .catch((error) => {
-            deferredStore.setState((s) => ({ ...s, [href]: { status: 'rejected', error } }))
+            deferredStore.setState((s) => {
+                const now = s[href]
+                if (!now || now.status != 'pending' || now.promise !== promise) return s
+                return { ...s, [href]: { status: 'rejected', error } }
+            })
         })
 
     deferredStore.setState((s) => ({ ...s, [href]: { status: 'pending', promise } }))
@@ -93,7 +109,7 @@ export function invalidateDeferredByPrefix(prefix: string) {
         let changed = false
         const next: Record<string, DeferredEntry> = {}
         for (const [k, v] of Object.entries(s)) {
-            if (k === prefix || k.startsWith(prefix + '?') || k.startsWith(prefix + '&')) {
+            if (k === prefix || k.startsWith(prefix + '?')) {
                 changed = true
                 continue
             }

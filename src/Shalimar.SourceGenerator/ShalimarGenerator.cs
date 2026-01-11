@@ -854,6 +854,8 @@ public class ShalimarGenerator : IIncrementalGenerator
         tsSb.AppendLine("    })");
         tsSb.AppendLine("    const contentType = res.headers.get('content-type') ?? ''");
         tsSb.AppendLine("    if (res.ok) {");
+        tsSb.AppendLine("        // Allow command endpoints that intentionally return no content.");
+        tsSb.AppendLine("        if (res.status === 204) return { ok: true, value: (undefined as unknown as TRes) }");
         tsSb.AppendLine("        const json = (await res.json().catch(() => null)) as TRes | null");
         tsSb.AppendLine("        if (json === null) return { ok: false, error: `Mutation returned invalid JSON: ${method} ${url}` }");
         tsSb.AppendLine("        return { ok: true, value: json }");

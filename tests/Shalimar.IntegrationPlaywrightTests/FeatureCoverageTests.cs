@@ -134,7 +134,8 @@ public class FeatureCoverageTests(IntegrationAppFixture fixture)
             await page.GetByTestId("streamed-start").ClickAsync();
             var abort = page.GetByRole(AriaRole.Button, new() { Name = "Abort" });
             await Assertions.Expect(page.GetByTestId("streamed-status")).ToContainTextAsync("streaming", new() { Timeout = 5000 });
-            await abort.ClickAsync(new() { Force = true });
+            await Assertions.Expect(abort).ToBeEnabledAsync(new() { Timeout = 5000 });
+            await abort.ClickAsync();
             await Assertions.Expect(page.GetByTestId("streamed-status")).ToContainTextAsync("aborted", new() { Timeout = 15000 });
         }
         catch (Exception ex)

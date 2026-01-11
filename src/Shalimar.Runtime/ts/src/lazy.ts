@@ -46,11 +46,19 @@ export function useLazy<T>(ref: { href: string }) {
 
         const promise = fetchJson(href)
             .then((value) => {
-                lazyStore.setState((s) => ({ ...s, [href]: { status: 'resolved', value } }))
+                lazyStore.setState((s) => {
+                    const now = s[href]
+                    if (!now || now.status !== 'pending' || now.promise !== promise) return s
+                    return { ...s, [href]: { status: 'resolved', value } }
+                })
                 return value
             })
             .catch((error) => {
-                lazyStore.setState((s) => ({ ...s, [href]: { status: 'rejected', error } }))
+                lazyStore.setState((s) => {
+                    const now = s[href]
+                    if (!now || now.status !== 'pending' || now.promise !== promise) return s
+                    return { ...s, [href]: { status: 'rejected', error } }
+                })
                 throw error
             })
 
@@ -85,7 +93,7 @@ export function invalidateLazyByPrefix(prefix: string) {
         let changed = false
         const next: Record<string, LazyEntry> = {}
         for (const [k, v] of Object.entries(s)) {
-            if (k === prefix || k.startsWith(prefix + '?') || k.startsWith(prefix + '&')) {
+            if (k === prefix || k.startsWith(prefix + '?')) {
                 changed = true
                 continue
             }
