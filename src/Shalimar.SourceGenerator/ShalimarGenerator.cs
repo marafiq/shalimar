@@ -58,13 +58,22 @@ public class ShalimarGenerator : IIncrementalGenerator
             .Where(static info => info is not null)
             .Collect();
 
+        // Find all invocations of AsMutation<TReq, TRes>()
+        var mutationCalls = context.SyntaxProvider
+            .CreateSyntaxProvider(
+                predicate: static (node, _) => IsAsMutationCall(node),
+                transform: static (ctx, _) => GetMutationInfo(ctx))
+            .Where(static info => info is not null)
+            .Collect();
+
         // Combine with compilation
         var compilationAndComponents = context.CompilationProvider
             .Combine(componentCalls)
             .Combine(deferredCalls)
             .Combine(lazyCalls)
             .Combine(streamCalls)
-            .Combine(sseCalls);
+            .Combine(sseCalls)
+            .Combine(mutationCalls);
 
         // Generate output
         context.RegisterSourceOutput(compilationAndComponents, Execute);
@@ -103,6 +112,13 @@ public class ShalimarGenerator : IIncrementalGenerator
         return node is InvocationExpressionSyntax invocation &&
                invocation.Expression is MemberAccessExpressionSyntax memberAccess &&
                memberAccess.Name.Identifier.Text == "AsSse";
+    }
+
+    private static bool IsAsMutationCall(SyntaxNode node)
+    {
+        return node is InvocationExpressionSyntax invocation &&
+               invocation.Expression is MemberAccessExpressionSyntax memberAccess &&
+               memberAccess.Name.Identifier.Text == "AsMutation";
     }
 
     private static ComponentInfo? GetComponentInfo(GeneratorSyntaxContext context)
@@ -215,6 +231,84 @@ public class ShalimarGenerator : IIncrementalGenerator
         return new SseInfo(typeSymbol, routePath!, method, parent);
     }
 
+    private static MutationInfo? GetMutationInfo(GeneratorSyntaxContext context)
+    {
+        var invocation = (InvocationExpressionSyntax)context.Node;
+        var memberAccess = (MemberAccessExpressionSyntax)invocation.Expression;
+
+        if (memberAccess.Name is not GenericNameSyntax genericName ||
+            genericName.TypeArgumentList.Arguments.Count != 2)
+            return null;
+
+        var reqArg = genericName.TypeArgumentList.Arguments[0];
+        var resArg = genericName.TypeArgumentList.Arguments[1];
+
+        var reqType = context.SemanticModel.GetTypeInfo(reqArg).Type;
+        var resType = context.SemanticModel.GetTypeInfo(resArg).Type;
+        if (reqType is null || resType is null) return null;
+
+        var routePath = FindRoutePath(invocation);
+        if (string.IsNullOrWhiteSpace(routePath)) return null;
+
+        var methodName = MakeRefMethodName(routePath!);
+        var httpMethod = FindHttpMethod(invocation) ?? "POST";
+        var invalidates = FindInvalidatesTypeNames(invocation);
+
+        return new MutationInfo(reqType, resType, routePath!, methodName, httpMethod, invalidates);
+    }
+
+    private static string? FindHttpMethod(InvocationExpressionSyntax invocation)
+    {
+        if (invocation.Expression is not MemberAccessExpressionSyntax access)
+            return null;
+
+        ExpressionSyntax? current = access.Expression;
+        while (current is InvocationExpressionSyntax inv)
+        {
+            if (inv.Expression is MemberAccessExpressionSyntax ma)
+            {
+                var name = ma.Name.Identifier.Text;
+                if (name.StartsWith("Map", StringComparison.Ordinal))
+                {
+                    if (name.Equals("MapPost", StringComparison.Ordinal)) return "POST";
+                    if (name.Equals("MapPut", StringComparison.Ordinal)) return "PUT";
+                    if (name.Equals("MapPatch", StringComparison.Ordinal)) return "PATCH";
+                    if (name.Equals("MapDelete", StringComparison.Ordinal)) return "DELETE";
+                    return null;
+                }
+                current = ma.Expression;
+                continue;
+            }
+            break;
+        }
+        return null;
+    }
+
+    private static List<string> FindInvalidatesTypeNames(InvocationExpressionSyntax invocation)
+    {
+        var output = new List<string>();
+        if (invocation.Expression is not MemberAccessExpressionSyntax access)
+            return output;
+
+        ExpressionSyntax? current = access.Expression;
+        while (current is InvocationExpressionSyntax inv)
+        {
+            if (inv.Expression is MemberAccessExpressionSyntax ma)
+            {
+                if (ma.Name is GenericNameSyntax gn && gn.Identifier.Text == "Invalidates" && gn.TypeArgumentList.Arguments.Count == 1)
+                {
+                    output.Add(gn.TypeArgumentList.Arguments[0].ToString());
+                }
+                current = ma.Expression;
+                continue;
+            }
+            break;
+        }
+
+        output.Sort(StringComparer.Ordinal);
+        return output;
+    }
+
     private static string? FindRoutePath(InvocationExpressionSyntax invocation)
     {
         // `invocation` is the `.AsComponent<T>()` call. The route path lives on the
@@ -321,15 +415,15 @@ public class ShalimarGenerator : IIncrementalGenerator
 
     private static void Execute(
         SourceProductionContext context,
-        (((((Compilation Compilation, ImmutableArray<ComponentInfo?> Components) Left, ImmutableArray<DeferredInfo?> Deferred) Mid, ImmutableArray<LazyInfo?> Lazy) Left2, ImmutableArray<StreamInfo?> Stream) Left3, ImmutableArray<SseInfo?> Sse) source)
+        ((((((Compilation Compilation, ImmutableArray<ComponentInfo?> Components) Left, ImmutableArray<DeferredInfo?> Deferred) Mid, ImmutableArray<LazyInfo?> Lazy) Left2, ImmutableArray<StreamInfo?> Stream) Left3, ImmutableArray<SseInfo?> Sse) Left4, ImmutableArray<MutationInfo?> Mutations) source)
     {
-        var compilation = source.Left3.Left2.Mid.Left.Compilation;
-        var components = source.Left3.Left2.Mid.Left.Components
+        var compilation = source.Left4.Left3.Left2.Mid.Left.Compilation;
+        var components = source.Left4.Left3.Left2.Mid.Left.Components
             .Where(c => c is not null)
             .Cast<ComponentInfo>()
             .ToList();
 
-        var deferred = source.Left3.Left2.Mid.Deferred
+        var deferred = source.Left4.Left3.Left2.Mid.Deferred
             .Where(d => d is not null)
             .Cast<DeferredInfo>()
             .GroupBy(d => d.Path, StringComparer.Ordinal)
@@ -337,7 +431,7 @@ public class ShalimarGenerator : IIncrementalGenerator
             .OrderBy(d => d.Path, StringComparer.Ordinal)
             .ToList();
 
-        var lazy = source.Left3.Left2.Lazy
+        var lazy = source.Left4.Left3.Left2.Lazy
             .Where(d => d is not null)
             .Cast<LazyInfo>()
             .GroupBy(d => d.Path, StringComparer.Ordinal)
@@ -345,7 +439,7 @@ public class ShalimarGenerator : IIncrementalGenerator
             .OrderBy(d => d.Path, StringComparer.Ordinal)
             .ToList();
 
-        var stream = source.Left3.Stream
+        var stream = source.Left4.Left3.Stream
             .Where(d => d is not null)
             .Cast<StreamInfo>()
             .GroupBy(d => d.Path, StringComparer.Ordinal)
@@ -353,12 +447,20 @@ public class ShalimarGenerator : IIncrementalGenerator
             .OrderBy(d => d.Path, StringComparer.Ordinal)
             .ToList();
 
-        var sse = source.Sse
+        var sse = source.Left4.Left3.Sse
             .Where(d => d is not null)
             .Cast<SseInfo>()
             .GroupBy(d => d.Path, StringComparer.Ordinal)
             .Select(g => g.First())
             .OrderBy(d => d.Path, StringComparer.Ordinal)
+            .ToList();
+
+        var mutations = source.Mutations
+            .Where(m => m is not null)
+            .Cast<MutationInfo>()
+            .GroupBy(m => m.Path, StringComparer.Ordinal)
+            .Select(g => g.First())
+            .OrderBy(m => m.Path, StringComparer.Ordinal)
             .ToList();
 
         // Generate C# routes
@@ -368,6 +470,9 @@ public class ShalimarGenerator : IIncrementalGenerator
         GenerateCSharpStreamRefs(context, stream);
         GenerateCSharpSseRefs(context, sse);
         GenerateCSharpComponentTreeRefs(context, deferred, lazy, stream, sse);
+
+        GenerateTypeScriptInvalidationsEmbedded(context, compilation, deferred, lazy, stream, sse);
+        GenerateTypeScriptMutationsEmbedded(context, compilation, mutations);
 
         // Generate TypeScript embedded in C# files (for MSBuild task to extract)
         GenerateTypeScriptTypesEmbedded(context, compilation, components);
@@ -1221,6 +1326,26 @@ public class ShalimarGenerator : IIncrementalGenerator
             Path = path;
             RefMethodName = refMethodName;
             ParentComponentTypeName = parentComponentTypeName;
+        }
+    }
+
+    private sealed class MutationInfo
+    {
+        public ITypeSymbol RequestType { get; }
+        public ITypeSymbol ResponseType { get; }
+        public string Path { get; }
+        public string MethodName { get; }
+        public string HttpMethod { get; }
+        public IReadOnlyList<string> InvalidatesComponentTypeNames { get; }
+
+        public MutationInfo(ITypeSymbol requestType, ITypeSymbol responseType, string path, string methodName, string httpMethod, IReadOnlyList<string> invalidates)
+        {
+            RequestType = requestType;
+            ResponseType = responseType;
+            Path = path;
+            MethodName = methodName;
+            HttpMethod = httpMethod;
+            InvalidatesComponentTypeNames = invalidates;
         }
     }
 }

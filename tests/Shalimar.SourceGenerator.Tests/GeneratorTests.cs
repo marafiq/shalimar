@@ -342,4 +342,90 @@ public sealed record ActivityEvent(string Kind);
         Assert.Contains("export interface Sse<T>", shalimarTypes, StringComparison.Ordinal);
         Assert.Contains("activitySse: Sse<ActivityEvent>", shalimarTypes, StringComparison.Ordinal);
     }
+
+    [Fact]
+    public void Generator_Emits_Mutations_And_Invalidations()
+    {
+        var source = """
+using System;
+
+namespace Shalimar
+{
+    public sealed record Deferred<T>(string Href);
+    public sealed record Lazy<T>(string Href);
+    public static class RouteBuilderExtensions
+    {
+        public static RouteHandlerBuilder AsComponent<TProps>(this RouteHandlerBuilder builder) => builder;
+        public static RouteHandlerBuilder AsDeferred<T>(this RouteHandlerBuilder builder) => builder;
+        public static RouteHandlerBuilder AsLazy<T>(this RouteHandlerBuilder builder) => builder;
+        public static RouteHandlerBuilder ForComponent<TProps>(this RouteHandlerBuilder builder) => builder;
+        public static RouteHandlerBuilder AsMutation<TReq, TRes>(this RouteHandlerBuilder builder) => builder;
+        public static RouteHandlerBuilder Invalidates<TProps>(this RouteHandlerBuilder builder) => builder;
+    }
+}
+
+public sealed class RouteHandlerBuilder
+{
+    public RouteHandlerBuilder WithName(string name) => this;
+}
+
+public sealed class WebApplication
+{
+    public RouteHandlerBuilder MapGet(string pattern, Delegate handler) => new();
+    public RouteHandlerBuilder MapPost(string pattern, Delegate handler) => new();
+}
+
+namespace TestApp;
+
+public static class App
+{
+    public static void Configure(WebApplication app)
+    {
+        app.MapGet("/", () => new DashboardProps(new Shalimar.Deferred<Insights>("/insights"), new Shalimar.Lazy<Forecast>("/forecast")))
+            .AsComponent<DashboardProps>();
+
+        app.MapGet("/insights", () => new Insights("x")).ForComponent<DashboardProps>().AsDeferred<Insights>();
+        app.MapGet("/forecast", () => new Forecast("y")).ForComponent<DashboardProps>().AsLazy<Forecast>();
+
+        app.MapPost("/do", (DoThing req) => new DoResult("ok"))
+            .Invalidates<DashboardProps>()
+            .AsMutation<DoThing, DoResult>();
+    }
+}
+
+public sealed record DashboardProps(Shalimar.Deferred<Insights> Insights, Shalimar.Lazy<Forecast> Forecast);
+public sealed record Insights(string Summary);
+public sealed record Forecast(string Summary);
+public sealed record DoThing(string Name);
+public sealed record DoResult(string Status);
+""";
+
+        var syntaxTree = CSharpSyntaxTree.ParseText(source, CSharpParseOptions.Default);
+
+        var references = new[]
+        {
+            MetadataReference.CreateFromFile(typeof(object).Assembly.Location),
+            MetadataReference.CreateFromFile(typeof(Enumerable).Assembly.Location),
+        };
+
+        var compilation = CSharpCompilation.Create(
+            assemblyName: "TestApp",
+            syntaxTrees: new[] { syntaxTree },
+            references: references,
+            options: new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary, nullableContextOptions: NullableContextOptions.Enable));
+
+        var generator = new ShalimarGenerator();
+        GeneratorDriver driver = CSharpGeneratorDriver.Create(generator);
+        driver = driver.RunGeneratorsAndUpdateCompilation(compilation, out var outputCompilation, out var diagnostics);
+
+        Assert.Empty(diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error));
+
+        var generated = outputCompilation.SyntaxTrees
+            .Where(t => t != syntaxTree)
+            .Select(t => new { Text = t.ToString() })
+            .ToList();
+
+        Assert.Contains(generated, g => g.Text.Contains("SHALIMAR_TS: shalimar-mutations.g.ts", StringComparison.Ordinal));
+        Assert.Contains(generated, g => g.Text.Contains("SHALIMAR_TS: shalimar-invalidations.g.ts", StringComparison.Ordinal));
+    }
 }

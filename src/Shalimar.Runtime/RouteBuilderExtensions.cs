@@ -69,6 +69,25 @@ public static class RouteBuilderExtensions
     }
 
     /// <summary>
+    /// Marks this endpoint as a JSON mutation (command) with request/response types.
+    /// </summary>
+    public static RouteHandlerBuilder AsMutation<TRequest, TResponse>(this RouteHandlerBuilder builder)
+    {
+        builder.WithMetadata(new ShalimarMutationMetadata(typeof(TRequest), typeof(TResponse)));
+        return builder;
+    }
+
+    /// <summary>
+    /// Declares that this endpoint invalidates a component's derived data.
+    /// This is used by the generator to emit typed invalidation helpers.
+    /// </summary>
+    public static RouteHandlerBuilder Invalidates<TProps>(this RouteHandlerBuilder builder)
+    {
+        builder.WithMetadata(new ShalimarInvalidatesMetadata(typeof(TProps)));
+        return builder;
+    }
+
+    /// <summary>
     /// Associates a JSX file with this component route.
     /// </summary>
     public static RouteHandlerBuilder WithJsxFile(this RouteHandlerBuilder builder, string path)
@@ -112,3 +131,14 @@ public record ShalimarSseMetadata(Type EventType);
 /// Metadata indicating this endpoint belongs to a component props model.
 /// </summary>
 public record ShalimarForComponentMetadata(Type ComponentPropsType);
+
+/// <summary>
+/// Metadata indicating this endpoint is a Shalimar mutation (request/response).
+/// </summary>
+public record ShalimarMutationMetadata(Type RequestType, Type ResponseType);
+
+/// <summary>
+/// Metadata indicating this endpoint invalidates a component.
+/// Multiple invalidations can be attached.
+/// </summary>
+public record ShalimarInvalidatesMetadata(Type ComponentPropsType);
