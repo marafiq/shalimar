@@ -19,6 +19,16 @@ public static class RouteBuilderExtensions
     }
 
     /// <summary>
+    /// Associates an endpoint (Deferred/Lazy/Stream/SSE) with a parent component props type.
+    /// This enables generator output to be organized as a component tree.
+    /// </summary>
+    public static RouteHandlerBuilder ForComponent<TProps>(this RouteHandlerBuilder builder)
+    {
+        builder.WithMetadata(new ShalimarForComponentMetadata(typeof(TProps)));
+        return builder;
+    }
+
+    /// <summary>
     /// Marks this endpoint as a deferred JSON query. Deferred endpoints are intended to be
     /// referenced from component props via <see cref="Deferred{T}"/> handles.
     /// </summary>
@@ -97,3 +107,8 @@ public record ShalimarStreamMetadata(Type EventType);
 /// Metadata indicating this endpoint is a Shalimar SSE subscription.
 /// </summary>
 public record ShalimarSseMetadata(Type EventType);
+
+/// <summary>
+/// Metadata indicating this endpoint belongs to a component props model.
+/// </summary>
+public record ShalimarForComponentMetadata(Type ComponentPropsType);

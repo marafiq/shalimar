@@ -148,7 +148,8 @@ public class ShalimarGenerator : IIncrementalGenerator
         if (string.IsNullOrWhiteSpace(routePath)) return null;
 
         var method = MakeRefMethodName(routePath!);
-        return new DeferredInfo(typeSymbol, routePath!, method);
+        var parent = FindForComponentTypeName(invocation);
+        return new DeferredInfo(typeSymbol, routePath!, method, parent);
     }
 
     private static LazyInfo? GetLazyInfo(GeneratorSyntaxContext context)
@@ -167,8 +168,9 @@ public class ShalimarGenerator : IIncrementalGenerator
         var routePath = FindRoutePath(invocation);
         if (string.IsNullOrWhiteSpace(routePath)) return null;
 
-        var method = MakeRefMethodName(routePath!) ;
-        return new LazyInfo(typeSymbol, routePath!, method);
+        var method = MakeRefMethodName(routePath!);
+        var parent = FindForComponentTypeName(invocation);
+        return new LazyInfo(typeSymbol, routePath!, method, parent);
     }
 
     private static StreamInfo? GetStreamInfo(GeneratorSyntaxContext context)
@@ -188,7 +190,8 @@ public class ShalimarGenerator : IIncrementalGenerator
         if (string.IsNullOrWhiteSpace(routePath)) return null;
 
         var method = MakeRefMethodName(routePath!);
-        return new StreamInfo(typeSymbol, routePath!, method);
+        var parent = FindForComponentTypeName(invocation);
+        return new StreamInfo(typeSymbol, routePath!, method, parent);
     }
 
     private static SseInfo? GetSseInfo(GeneratorSyntaxContext context)
@@ -208,7 +211,8 @@ public class ShalimarGenerator : IIncrementalGenerator
         if (string.IsNullOrWhiteSpace(routePath)) return null;
 
         var method = MakeRefMethodName(routePath!);
-        return new SseInfo(typeSymbol, routePath!, method);
+        var parent = FindForComponentTypeName(invocation);
+        return new SseInfo(typeSymbol, routePath!, method, parent);
     }
 
     private static string? FindRoutePath(InvocationExpressionSyntax invocation)
@@ -263,6 +267,43 @@ public class ShalimarGenerator : IIncrementalGenerator
             sb.Append(ToPascalCase(seg));
         }
         return sb.Length == 0 ? "Deferred" : sb.ToString();
+    }
+
+    private static string? FindForComponentTypeName(InvocationExpressionSyntax invocation)
+    {
+        // `invocation` is the terminal `.AsX<T>()` call. We walk left through the fluent chain
+        // to find `.ForComponent<TProps>()` if present.
+        if (invocation.Expression is not MemberAccessExpressionSyntax access)
+            return null;
+
+        ExpressionSyntax? current = access.Expression;
+        while (current is InvocationExpressionSyntax inv)
+        {
+            if (inv.Expression is MemberAccessExpressionSyntax ma)
+            {
+                if (ma.Name is GenericNameSyntax gn && gn.Identifier.Text == "ForComponent" && gn.TypeArgumentList.Arguments.Count == 1)
+                {
+                    return gn.TypeArgumentList.Arguments[0].ToString();
+                }
+                current = ma.Expression;
+                continue;
+            }
+            break;
+        }
+
+        return null;
+    }
+
+    private static string SanitizeIdentifier(string raw)
+    {
+        var sb = new StringBuilder(raw.Length);
+        for (var i = 0; i < raw.Length; i++)
+        {
+            var c = raw[i];
+            if (char.IsLetterOrDigit(c) || c == '_') sb.Append(c);
+        }
+        if (sb.Length == 0 || (!char.IsLetter(sb[0]) && sb[0] != '_')) sb.Insert(0, '_');
+        return sb.ToString();
     }
 
     private static ImmutableArray<PropertyInfo> GetProperties(ITypeSymbol type)
@@ -326,6 +367,7 @@ public class ShalimarGenerator : IIncrementalGenerator
         GenerateCSharpLazyRefs(context, lazy);
         GenerateCSharpStreamRefs(context, stream);
         GenerateCSharpSseRefs(context, sse);
+        GenerateCSharpComponentTreeRefs(context, deferred, lazy, stream, sse);
 
         // Generate TypeScript embedded in C# files (for MSBuild task to extract)
         GenerateTypeScriptTypesEmbedded(context, compilation, components);
@@ -446,6 +488,110 @@ public class ShalimarGenerator : IIncrementalGenerator
 
         sb.AppendLine("}");
         context.AddSource("SseRefs.g.cs", SourceText.From(sb.ToString(), Encoding.UTF8));
+    }
+
+    private static void GenerateCSharpComponentTreeRefs(
+        SourceProductionContext context,
+        List<DeferredInfo> deferred,
+        List<LazyInfo> lazy,
+        List<StreamInfo> stream,
+        List<SseInfo> sse)
+    {
+        var any = deferred.Any(d => !string.IsNullOrWhiteSpace(d.ParentComponentTypeName)) ||
+                  lazy.Any(d => !string.IsNullOrWhiteSpace(d.ParentComponentTypeName)) ||
+                  stream.Any(d => !string.IsNullOrWhiteSpace(d.ParentComponentTypeName)) ||
+                  sse.Any(d => !string.IsNullOrWhiteSpace(d.ParentComponentTypeName));
+
+        if (!any) return;
+
+        static IEnumerable<(string Parent, string Mode, string Method, string ReturnType)> CollectDeferred(IEnumerable<DeferredInfo> items)
+        {
+            foreach (var i in items)
+            {
+                if (string.IsNullOrWhiteSpace(i.ParentComponentTypeName)) continue;
+                var rt = $"global::Shalimar.Deferred<{i.ResultType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)}>";
+                yield return (i.ParentComponentTypeName!, "Deferred", i.RefMethodName, rt);
+            }
+        }
+
+        static IEnumerable<(string Parent, string Mode, string Method, string ReturnType)> CollectLazy(IEnumerable<LazyInfo> items)
+        {
+            foreach (var i in items)
+            {
+                if (string.IsNullOrWhiteSpace(i.ParentComponentTypeName)) continue;
+                var rt = $"global::Shalimar.Lazy<{i.ResultType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)}>";
+                yield return (i.ParentComponentTypeName!, "Lazy", i.RefMethodName, rt);
+            }
+        }
+
+        static IEnumerable<(string Parent, string Mode, string Method, string ReturnType)> CollectStream(IEnumerable<StreamInfo> items)
+        {
+            foreach (var i in items)
+            {
+                if (string.IsNullOrWhiteSpace(i.ParentComponentTypeName)) continue;
+                var rt = $"global::Shalimar.Stream<{i.EventType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)}>";
+                yield return (i.ParentComponentTypeName!, "Stream", i.RefMethodName, rt);
+            }
+        }
+
+        static IEnumerable<(string Parent, string Mode, string Method, string ReturnType)> CollectSse(IEnumerable<SseInfo> items)
+        {
+            foreach (var i in items)
+            {
+                if (string.IsNullOrWhiteSpace(i.ParentComponentTypeName)) continue;
+                var rt = $"global::Shalimar.Sse<{i.EventType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)}>";
+                yield return (i.ParentComponentTypeName!, "Sse", i.RefMethodName, rt);
+            }
+        }
+
+        var entries = new List<(string Parent, string Mode, string Method, string ReturnType)>();
+        entries.AddRange(CollectDeferred(deferred));
+        entries.AddRange(CollectLazy(lazy));
+        entries.AddRange(CollectStream(stream));
+        entries.AddRange(CollectSse(sse));
+
+        var byParent = entries
+            .GroupBy(e => e.Parent, StringComparer.Ordinal)
+            .OrderBy(g => g.Key, StringComparer.Ordinal);
+
+        var sb = new StringBuilder();
+        sb.AppendLine("// <auto-generated/>");
+        sb.AppendLine("namespace Shalimar.Generated;");
+        sb.AppendLine();
+        sb.AppendLine("public static class Components");
+        sb.AppendLine("{");
+
+        foreach (var parent in byParent)
+        {
+            var parentName = SanitizeIdentifier(parent.Key);
+            sb.AppendLine($"    public static class {parentName}");
+            sb.AppendLine("    {");
+
+            foreach (var modeGroup in parent.GroupBy(e => e.Mode, StringComparer.Ordinal).OrderBy(g => g.Key, StringComparer.Ordinal))
+            {
+                sb.AppendLine($"        public static class {modeGroup.Key}");
+                sb.AppendLine("        {");
+                foreach (var e in modeGroup.OrderBy(x => x.Method, StringComparer.Ordinal))
+                {
+                    // Delegate to the global refs (still generated).
+                    var target = e.Mode switch
+                    {
+                        "Deferred" => $"global::Shalimar.Generated.DeferredRefs.{e.Method}()",
+                        "Lazy" => $"global::Shalimar.Generated.LazyRefs.{e.Method}()",
+                        "Stream" => $"global::Shalimar.Generated.StreamRefs.{e.Method}()",
+                        "Sse" => $"global::Shalimar.Generated.SseRefs.{e.Method}()",
+                        _ => throw new InvalidOperationException("Unknown mode")
+                    };
+                    sb.AppendLine($"            public static {e.ReturnType} {e.Method}() => {target};");
+                }
+                sb.AppendLine("        }");
+            }
+
+            sb.AppendLine("    }");
+        }
+        sb.AppendLine("}");
+
+        context.AddSource("Components.g.cs", SourceText.From(sb.ToString(), Encoding.UTF8));
     }
 
     private static void GenerateTypeScriptTypesEmbedded(
@@ -1019,12 +1165,14 @@ public class ShalimarGenerator : IIncrementalGenerator
         public ITypeSymbol ResultType { get; }
         public string Path { get; }
         public string RefMethodName { get; }
+        public string? ParentComponentTypeName { get; }
 
-        public DeferredInfo(ITypeSymbol resultType, string path, string refMethodName)
+        public DeferredInfo(ITypeSymbol resultType, string path, string refMethodName, string? parentComponentTypeName)
         {
             ResultType = resultType;
             Path = path;
             RefMethodName = refMethodName;
+            ParentComponentTypeName = parentComponentTypeName;
         }
     }
 
@@ -1033,12 +1181,14 @@ public class ShalimarGenerator : IIncrementalGenerator
         public ITypeSymbol ResultType { get; }
         public string Path { get; }
         public string RefMethodName { get; }
+        public string? ParentComponentTypeName { get; }
 
-        public LazyInfo(ITypeSymbol resultType, string path, string refMethodName)
+        public LazyInfo(ITypeSymbol resultType, string path, string refMethodName, string? parentComponentTypeName)
         {
             ResultType = resultType;
             Path = path;
             RefMethodName = refMethodName;
+            ParentComponentTypeName = parentComponentTypeName;
         }
     }
 
@@ -1047,12 +1197,14 @@ public class ShalimarGenerator : IIncrementalGenerator
         public ITypeSymbol EventType { get; }
         public string Path { get; }
         public string RefMethodName { get; }
+        public string? ParentComponentTypeName { get; }
 
-        public StreamInfo(ITypeSymbol eventType, string path, string refMethodName)
+        public StreamInfo(ITypeSymbol eventType, string path, string refMethodName, string? parentComponentTypeName)
         {
             EventType = eventType;
             Path = path;
             RefMethodName = refMethodName;
+            ParentComponentTypeName = parentComponentTypeName;
         }
     }
 
@@ -1061,12 +1213,14 @@ public class ShalimarGenerator : IIncrementalGenerator
         public ITypeSymbol EventType { get; }
         public string Path { get; }
         public string RefMethodName { get; }
+        public string? ParentComponentTypeName { get; }
 
-        public SseInfo(ITypeSymbol eventType, string path, string refMethodName)
+        public SseInfo(ITypeSymbol eventType, string path, string refMethodName, string? parentComponentTypeName)
         {
             EventType = eventType;
             Path = path;
             RefMethodName = refMethodName;
+            ParentComponentTypeName = parentComponentTypeName;
         }
     }
 }

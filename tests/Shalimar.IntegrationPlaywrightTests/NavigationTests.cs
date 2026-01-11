@@ -17,6 +17,7 @@ public class NavigationTests(IntegrationAppFixture fixture)
             await page.WaitForLoadStateAsync(LoadState.NetworkIdle);
             await Assertions.Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Welcome to Shalimar" }))
                 .ToBeVisibleAsync();
+            await Assertions.Expect(page.GetByTestId("env-pill")).ToContainTextAsync("Env:");
             await SnapshotAssertions.AssertMatchesAsync(page, diag, nameof(Home_Renders), "dashboard.png");
         }
         catch (Exception ex)

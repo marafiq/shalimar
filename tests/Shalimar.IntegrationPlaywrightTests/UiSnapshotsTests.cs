@@ -191,6 +191,30 @@ public class UiSnapshotsTests(IntegrationAppFixture fixture)
         }
     }
 
+    [Fact]
+    public async Task Dashboard_Lazy_Loaded()
+    {
+        var (context, page, diag) = await fixture.NewPageAsync(nameof(Dashboard_Lazy_Loaded));
+        try
+        {
+            await page.GotoAsync(fixture.BaseUrl);
+            await page.WaitForLoadStateAsync(LoadState.NetworkIdle);
+            await page.GetByRole(AriaRole.Button, new() { Name = "Load forecast" }).ClickAsync();
+            await Assertions.Expect(page.GetByText("Forecast is stable.")).ToBeVisibleAsync();
+            await SnapshotAssertions.AssertMatchesAsync(page, diag, nameof(Dashboard_Lazy_Loaded), "dashboard-lazy.png");
+        }
+        catch (Exception ex)
+        {
+            await diag.CaptureFailureAsync(page, ex);
+            throw;
+        }
+        finally
+        {
+            await diag.FlushAsync();
+            await context.DisposeAsync();
+        }
+    }
+
     private async Task SnapshotRouteAsync(string testName, string path, string snapshotFile)
     {
         var (context, page, diag) = await fixture.NewPageAsync(testName);

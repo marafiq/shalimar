@@ -4,7 +4,7 @@ import { Button, Heading, Text, TextField } from '@react-spectrum/s2'
 import { IconAccounts, IconBell, IconBoard, IconChevronRight, IconDashboard, IconMenu, IconSettings, IconTasks, IconX } from './icons'
 import { setMobileNavOpen, toggleNotifications, toggleSidebarCollapsed, uiStore } from './store'
 
-export function AppShell(props: { children: React.ReactNode }) {
+export function AppShell(props: { children: React.ReactNode; environment: string }) {
     const ui = useStore(uiStore)
     const pathname = useRouterState({ select: (s) => s.location.pathname })
     const unread = ui.notifications.filter((n) => !n.read).length
@@ -33,6 +33,13 @@ export function AppShell(props: { children: React.ReactNode }) {
                     </div>
 
                     <div className="ml-auto flex min-w-0 items-center gap-2">
+                        <div
+                            className="hidden items-center gap-2 rounded-full border border-zinc-200 bg-white px-3 py-1 text-xs shadow-sm dark:border-zinc-800 dark:bg-zinc-900 lg:flex"
+                            data-testid="env-pill"
+                        >
+                            <span className="h-2 w-2 rounded-full bg-blue-500" />
+                            <span className="text-zinc-600 dark:text-zinc-300">Env: {props.environment}</span>
+                        </div>
                         <div className="hidden w-[min(520px,44vw)] lg:block">
                             <div className="relative">
                                 <TextField label="Search" aria-label="Global search" placeholder="Search tasks, accounts…" />

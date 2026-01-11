@@ -10,9 +10,10 @@ export const Route = createRootRouteWithContext<AppContext>()({
 })
 
 function RootComponent() {
+    const ctx = Route.useRouteContext()
     return (
         <>
-            <AppShell>
+            <AppShell environment={ctx.environment}>
                 <Outlet />
             </AppShell>
             <NotificationsPanel />

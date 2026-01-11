@@ -52,19 +52,21 @@ app.MapGet("/", async (HttpContext http, CrmRepository repo) =>
         Accounts: snapshot.Accounts.Count,
         FocusTasks: snapshot.Tasks.Take(5).ToList(),
         Activity: snapshot.Activity.Take(12).ToList(),
-        Insights: Shalimar.Generated.DeferredRefs.CrmInsights(),
-        Forecast: Shalimar.Generated.LazyRefs.CrmForecast(),
-        ActivitySse: Shalimar.Generated.SseRefs.CrmActivitySse(),
-        ActivityExport: Shalimar.Generated.StreamRefs.CrmActivityExport());
+        Insights: Shalimar.Generated.Components.DashboardProps.Deferred.CrmInsights(),
+        Forecast: Shalimar.Generated.Components.DashboardProps.Lazy.CrmForecast(),
+        ActivitySse: Shalimar.Generated.Components.DashboardProps.Sse.CrmActivitySse(),
+        ActivityExport: Shalimar.Generated.Components.DashboardProps.Stream.CrmActivityExport());
     return await http.RenderComponent(MakeContext(app), props, "Shalimar App");
 }).AsComponent<DashboardProps>();
 
 // Deferred mode: resolves after hydration via typed handle in props.
 app.MapGet("/crm/insights", (CrmRepository repo) => repo.Insights())
+    .ForComponent<DashboardProps>()
     .AsDeferred<CrmInsightsDto>();
 
 // Lazy mode: resolves only on user intent via typed handle in props.
 app.MapGet("/crm/forecast", (CrmRepository repo) => repo.Forecast())
+    .ForComponent<DashboardProps>()
     .AsLazy<CrmForecastDto>();
 
 // SSE subscription mode (realtime / long-lived). Separate from Streamed mode.
@@ -102,7 +104,9 @@ app.MapGet("/crm/activity/sse", async (HttpContext http, CrmRepository repo, Can
     }
 
     return Results.Empty;
-}).AsSse<CrmSseEventDto>();
+})
+    .ForComponent<DashboardProps>()
+    .AsSse<CrmSseEventDto>();
 
 // Streamed mode (finite): NDJSON over HTTP using an IAsyncEnumerable-like writer.
 app.MapGet("/crm/activity/export", async (HttpContext http, CrmRepository repo, CancellationToken ct) =>
@@ -118,7 +122,9 @@ app.MapGet("/crm/activity/export", async (HttpContext http, CrmRepository repo, 
     }
 
     return Results.Empty;
-}).AsStream<CrmActivityExportRowDto>();
+})
+    .ForComponent<DashboardProps>()
+    .AsStream<CrmActivityExportRowDto>();
 
 app.MapGet("/tasks", async (HttpContext http, CrmRepository repo) =>
 {
