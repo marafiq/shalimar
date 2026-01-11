@@ -80,3 +80,18 @@ export function invalidateLazy(href: string) {
     })
 }
 
+export function invalidateLazyByPrefix(prefix: string) {
+    lazyStore.setState((s) => {
+        let changed = false
+        const next: Record<string, LazyEntry> = {}
+        for (const [k, v] of Object.entries(s)) {
+            if (k === prefix || k.startsWith(prefix + '?') || k.startsWith(prefix + '&')) {
+                changed = true
+                continue
+            }
+            next[k] = v
+        }
+        return changed ? next : s
+    })
+}
+

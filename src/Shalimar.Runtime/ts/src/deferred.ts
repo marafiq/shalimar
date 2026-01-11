@@ -88,3 +88,18 @@ export function invalidateDeferred(href: string) {
     })
 }
 
+export function invalidateDeferredByPrefix(prefix: string) {
+    deferredStore.setState((s) => {
+        let changed = false
+        const next: Record<string, DeferredEntry> = {}
+        for (const [k, v] of Object.entries(s)) {
+            if (k === prefix || k.startsWith(prefix + '?') || k.startsWith(prefix + '&')) {
+                changed = true
+                continue
+            }
+            next[k] = v
+        }
+        return changed ? next : s
+    })
+}
+

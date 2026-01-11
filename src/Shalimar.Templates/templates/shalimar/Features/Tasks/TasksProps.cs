@@ -5,5 +5,6 @@ namespace ShalimarApp.Features.Tasks;
 // Server is truth: this props model represents what the Tasks component needs.
 public sealed record TasksProps(
     string Message,
-    CrmSnapshot Crm) : Shalimar.IComponentProps;
+    CrmSnapshot Crm,
+    Shalimar.Component<TasksGridProps> Grid) : Shalimar.IComponentProps;
 

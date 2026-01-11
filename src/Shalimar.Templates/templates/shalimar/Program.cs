@@ -145,7 +145,9 @@ app.MapGet("/crm/activity/export", async (HttpContext http, CrmRepository repo, 
 
 app.MapGet("/tasks", async (HttpContext http, CrmRepository repo) =>
 {
-    var props = new TasksProps("Tasks", repo.Snapshot());
+    var grid = new Component<TasksGridProps>(new TasksGridProps(
+        TasksGrid: Shalimar.Generated.Components.TasksGridProps.Deferred.CrmTasksGrid()));
+    var props = new TasksProps("Tasks", repo.Snapshot(), grid);
     return ShalimarTypedResults.Component(MakeContext(app), props, "Shalimar App");
 }).AsComponent<TasksProps>();
 
@@ -210,6 +212,31 @@ app.MapGet("/settings", async (HttpContext http) =>
 
 // Shalimar-style "feature endpoints" (no /api). These will be replaced by generated hooks later.
 app.MapGet("/crm/snapshot", (CrmRepository repo) => Results.Ok(repo.Snapshot()));
+app.MapGet("/crm/tasks/grid", (HttpRequest req, CrmRepository repo) =>
+{
+    static int GetInt(HttpRequest req, string key, int fallback)
+    {
+        var raw = req.Query[key].ToString();
+        return int.TryParse(raw, out var v) ? v : fallback;
+    }
+
+    static string? GetString(HttpRequest req, string key)
+    {
+        var raw = req.Query[key].ToString();
+        return string.IsNullOrWhiteSpace(raw) ? null : raw;
+    }
+
+    var page = GetInt(req, "page", 1);
+    var pageSize = GetInt(req, "pageSize", 20);
+    var q = GetString(req, "q");
+    var status = GetString(req, "status");
+    var priority = GetString(req, "priority");
+    var epicId = GetString(req, "epicId");
+
+    return Results.Ok(repo.TasksGrid(page, pageSize, q, status, priority, epicId));
+})
+    .ForComponent<TasksGridProps>()
+    .AsDeferred<CrmTasksGridDto>();
 app.MapGet("/crm/tasks/{taskId}/messages", (CrmRepository repo, string taskId) => Results.Ok(repo.Messages(taskId)));
 app.MapGet("/crm/tasks/{taskId}/artifacts", (CrmRepository repo, string taskId) => Results.Ok(repo.Artifacts(taskId)));
 app.MapGet("/crm/tasks/{taskId}/decisions", (CrmRepository repo, string taskId) => Results.Ok(repo.Decisions(taskId)));
@@ -232,6 +259,7 @@ app.MapPost("/crm/tasks", async (CrmRepository repo, IValidator<CreateTaskReques
     return Results.Ok(repo.CreateTask(req));
 })
     .Invalidates<DashboardAgentPanelProps>()
+    .Invalidates<TasksGridProps>()
     .AsMutation<CreateTaskRequest, TaskDto>();
 
 app.MapPatch("/crm/tasks/{taskId}", async (CrmRepository repo, IValidator<UpdateTaskRequest> v, string taskId, UpdateTaskRequest req) =>

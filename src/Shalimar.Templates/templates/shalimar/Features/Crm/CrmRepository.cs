@@ -120,6 +120,55 @@ public sealed class CrmRepository
         }
     }
 
+    public CrmTasksGridDto TasksGrid(
+        int page,
+        int pageSize,
+        string? query,
+        string? status,
+        string? priority,
+        string? epicId)
+    {
+        lock (_gate)
+        {
+            var q = (query ?? "").Trim();
+            var items = _tasks.AsEnumerable();
+
+            if (!string.IsNullOrWhiteSpace(q))
+            {
+                var lower = q.ToLowerInvariant();
+                items = items.Where(t => t.Title.ToLowerInvariant().Contains(lower));
+            }
+
+            if (!string.IsNullOrWhiteSpace(status))
+            {
+                items = items.Where(t => string.Equals(t.Status, status, StringComparison.Ordinal));
+            }
+
+            if (!string.IsNullOrWhiteSpace(priority))
+            {
+                items = items.Where(t => string.Equals(t.Priority, priority, StringComparison.Ordinal));
+            }
+
+            if (!string.IsNullOrWhiteSpace(epicId))
+            {
+                items = items.Where(t => string.Equals(t.EpicId, epicId, StringComparison.Ordinal));
+            }
+
+            var ordered = items
+                .OrderByDescending(t => t.UpdatedAt)
+                .ThenBy(t => t.Id, StringComparer.Ordinal)
+                .ToList();
+
+            var total = ordered.Count;
+            var safePageSize = Math.Clamp(pageSize, 5, 100);
+            var safePage = Math.Max(1, page);
+            var skip = (safePage - 1) * safePageSize;
+            var pageItems = ordered.Skip(skip).Take(safePageSize).ToList();
+
+            return new CrmTasksGridDto(safePage, safePageSize, total, pageItems);
+        }
+    }
+
     public TaskDto? GetTask(string taskId) => _tasks.FirstOrDefault(t => t.Id == taskId);
 
     public EpicDto? GetEpic(string epicId) => _epics.FirstOrDefault(e => e.Id == epicId);

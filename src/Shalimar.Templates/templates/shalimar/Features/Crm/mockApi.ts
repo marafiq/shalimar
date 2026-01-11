@@ -143,7 +143,17 @@ export async function createTask(title: string, accountId?: Id): Promise<Task> {
         tags: [],
     }
 
-    const dto = await mutateCrmTasks(req)
+    const result = await mutateCrmTasks(req)
+    if (!result.ok) {
+        if ('validation' in result) {
+            const flat = Object.entries(result.validation)
+                .flatMap(([k, v]) => v.map((m) => `${k}: ${m}`))
+                .join('\n')
+            throw new Error(`Validation failed\n${flat}`)
+        }
+        throw new Error(result.error)
+    }
+    const dto = result.value
     return toTask(dto)
 }
 

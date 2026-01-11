@@ -145,3 +145,24 @@ export function invalidateStreamed(href: string) {
     })
 }
 
+export function invalidateStreamedByPrefix(prefix: string) {
+    for (const [k, entry] of Object.entries(streamedStore.state)) {
+        if (k === prefix || k.startsWith(prefix + '?') || k.startsWith(prefix + '&')) {
+            entry.controller?.abort()
+        }
+    }
+
+    streamedStore.setState((s) => {
+        let changed = false
+        const next: Record<string, StreamedEntry> = {}
+        for (const [k, v] of Object.entries(s)) {
+            if (k === prefix || k.startsWith(prefix + '?') || k.startsWith(prefix + '&')) {
+                changed = true
+                continue
+            }
+            next[k] = v
+        }
+        return changed ? next : s
+    })
+}
+

@@ -124,3 +124,24 @@ export function invalidateSse(href: string) {
     })
 }
 
+export function invalidateSseByPrefix(prefix: string) {
+    for (const [k, entry] of Object.entries(sseStore.state)) {
+        if (k === prefix || k.startsWith(prefix + '?') || k.startsWith(prefix + '&')) {
+            if (entry.es) entry.es.close()
+        }
+    }
+
+    sseStore.setState((s) => {
+        let changed = false
+        const next: Record<string, SseEntry> = {}
+        for (const [k, v] of Object.entries(s)) {
+            if (k === prefix || k.startsWith(prefix + '?') || k.startsWith(prefix + '&')) {
+                changed = true
+                continue
+            }
+            next[k] = v
+        }
+        return changed ? next : s
+    })
+}
+
