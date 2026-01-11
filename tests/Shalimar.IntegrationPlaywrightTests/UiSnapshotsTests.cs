@@ -8,6 +8,24 @@ namespace Shalimar.IntegrationPlaywrightTests;
 public class UiSnapshotsTests(SandboxAppFixture fixture)
 {
     [Fact]
+    public async Task V2_Workbench()
+    {
+        await SnapshotRouteAsync(nameof(V2_Workbench), "/v2/workbench", "v2-workbench.png");
+    }
+
+    [Fact]
+    public async Task V2_Tasks()
+    {
+        await SnapshotRouteAsync(nameof(V2_Tasks), "/v2/tasks", "v2-tasks.png");
+    }
+
+    [Fact]
+    public async Task V2_Tasks_Create_Open()
+    {
+        await SnapshotRouteAsync(nameof(V2_Tasks_Create_Open), "/v2/tasks?create=1", "v2-tasks-create-open.png");
+    }
+
+    [Fact]
     public async Task Tasks_Page()
     {
         await SnapshotRouteAsync(nameof(Tasks_Page), "/tasks", "tasks.png");
