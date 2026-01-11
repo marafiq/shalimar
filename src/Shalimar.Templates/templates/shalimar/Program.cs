@@ -68,7 +68,7 @@ app.MapGet("/", async (HttpContext http, CrmRepository repo) =>
         Forecast: Shalimar.Generated.Components.DashboardProps.Lazy.CrmForecast(),
         ActivitySse: Shalimar.Generated.Components.DashboardProps.Sse.CrmActivitySse(),
         ActivityExport: Shalimar.Generated.Components.DashboardProps.Stream.CrmActivityExport());
-    return await http.RenderComponent(MakeContext(app), props, "Shalimar App");
+    return ShalimarTypedResults.Component(MakeContext(app), props, "Shalimar App");
 }).AsComponent<DashboardProps>();
 
 // Deferred mode: resolves after hydration via typed handle in props.
@@ -141,7 +141,7 @@ app.MapGet("/crm/activity/export", async (HttpContext http, CrmRepository repo, 
 app.MapGet("/tasks", async (HttpContext http, CrmRepository repo) =>
 {
     var props = new TasksProps("Tasks", repo.Snapshot());
-    return await http.RenderComponent(MakeContext(app), props, "Shalimar App");
+    return ShalimarTypedResults.Component(MakeContext(app), props, "Shalimar App");
 }).AsComponent<TasksProps>();
 
 static async Task WriteSseAsync<T>(HttpContext http, T data, CancellationToken ct)
@@ -173,19 +173,19 @@ static async Task WriteNdjsonAsync<T>(HttpContext http, T data, CancellationToke
 app.MapGet("/tasks/board", async (HttpContext http, CrmRepository repo) =>
 {
     var props = new TaskBoardProps("Board", repo.Snapshot());
-    return await http.RenderComponent(MakeContext(app), props, "Shalimar App");
+    return ShalimarTypedResults.Component(MakeContext(app), props, "Shalimar App");
 }).AsComponent<TaskBoardProps>();
 
 app.MapGet("/tasks/{taskId}", async (HttpContext http, string taskId) =>
 {
     var props = new TaskDetailProps("Task", taskId);
-    return await http.RenderComponent(MakeContext(app), props, "Shalimar App");
+    return ShalimarTypedResults.Component(MakeContext(app), props, "Shalimar App");
 }).AsComponent<TaskDetailProps>();
 
 app.MapGet("/accounts", async (HttpContext http, CrmRepository repo) =>
 {
     var props = new AccountsProps("Accounts", repo.Snapshot());
-    return await http.RenderComponent(MakeContext(app), props, "Shalimar App");
+    return ShalimarTypedResults.Component(MakeContext(app), props, "Shalimar App");
 }).AsComponent<AccountsProps>();
 
 app.MapGet("/accounts/{accountId}", async (HttpContext http, string accountId, CrmRepository repo) =>
@@ -194,13 +194,13 @@ app.MapGet("/accounts/{accountId}", async (HttpContext http, string accountId, C
     var contacts = repo.ContactsByAccount(accountId);
     var owner = account is null ? null : repo.Users.FirstOrDefault(u => u.Id == account.OwnerId);
     var props = new AccountDetailProps("Account", accountId, account, contacts, owner);
-    return await http.RenderComponent(MakeContext(app), props, "Shalimar App");
+    return ShalimarTypedResults.Component(MakeContext(app), props, "Shalimar App");
 }).AsComponent<AccountDetailProps>();
 
 app.MapGet("/settings", async (HttpContext http) =>
 {
     var props = new SettingsProps("Settings", app.Environment.EnvironmentName);
-    return await http.RenderComponent(MakeContext(app), props, "Shalimar App");
+    return ShalimarTypedResults.Component(MakeContext(app), props, "Shalimar App");
 }).AsComponent<SettingsProps>();
 
 // Shalimar-style "feature endpoints" (no /api). These will be replaced by generated hooks later.
