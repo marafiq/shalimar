@@ -1,16 +1,16 @@
 import { Outlet, createFileRoute, Link, useNavigate, useRouterState } from '@tanstack/react-router'
-import { Button, Heading, Text, TextField } from '@react-spectrum/s2'
-import { Suspense, useMemo, useState } from 'react'
+import { Button, Heading, Text } from '@react-spectrum/s2'
+import { Suspense, useMemo } from 'react'
 import { useStore } from '@tanstack/react-store'
 import { crmStore, ensureAccounts, ensureEpics, ensureTasks, ensureUsers } from '../Crm/store'
 import { PageSkeleton } from '../App/ui/Skeletons'
 import { IconPlus } from '../App/ui/icons'
 import { TaskDrawer } from './_components/TaskDrawer'
-import { useDeferred } from '@shalimar/runtime'
-import { pushToast } from '../App/ui/store'
-import { mutateCrmTasks, type ValidationErrors } from '@generated/store'
-import type { CrmTasksGridDto, CreateTaskRequest, TasksProps } from '@generated/types'
-import { CreateTaskRequestSchema } from '@generated/schemas'
+import type { TasksProps } from '@generated/types'
+import { TasksFiltersPanel } from './_components/TasksFiltersPanel'
+import { TasksGrid } from './_components/TasksGrid'
+import { TasksGridSkeleton } from './_components/TasksGridSkeleton'
+import { CreateTaskPane } from './_components/CreateTaskPane'
 
 export const Route = createFileRoute('/tasks')({
     validateSearch: (search: Record<string, unknown>) => ({
@@ -90,95 +90,21 @@ function TasksRoute() {
             {isTasksIndex ? (
                 <div className="mt-6 grid gap-4 lg:grid-cols-12">
                     <aside className="lg:col-span-4">
-                        <div className="sticky top-4 space-y-3">
-                            <div className="rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-800 dark:bg-zinc-950/40">
-                                <Heading level={3}>Filters</Heading>
-                                <div className="mt-3 space-y-3">
-                                    <TextField
-                                        label="Search"
-                                        placeholder="Find tasks…"
-                                        value={q}
-                                        onChange={(v) => navigate({ to: '/tasks', search: (s) => ({ ...s, q: v, page: 1 }) })}
-                                    />
-
-                                    <Field label="Status">
-                                        <select
-                                            className={selectClass}
-                                            value={status}
-                                            onChange={(e) =>
-                                                navigate({ to: '/tasks', search: (s) => ({ ...s, status: e.target.value, page: 1 }) })
-                                            }
-                                        >
-                                            <option value="">Any</option>
-                                            <option value="backlog">Backlog</option>
-                                            <option value="todo">Todo</option>
-                                            <option value="in_progress">In progress</option>
-                                            <option value="blocked">Blocked</option>
-                                            <option value="done">Done</option>
-                                        </select>
-                                    </Field>
-
-                                    <Field label="Priority">
-                                        <select
-                                            className={selectClass}
-                                            value={priority}
-                                            onChange={(e) =>
-                                                navigate({ to: '/tasks', search: (s) => ({ ...s, priority: e.target.value, page: 1 }) })
-                                            }
-                                        >
-                                            <option value="">Any</option>
-                                            <option value="low">Low</option>
-                                            <option value="medium">Medium</option>
-                                            <option value="high">High</option>
-                                        </select>
-                                    </Field>
-
-                                    <Field label="Epic">
-                                        <select
-                                            className={selectClass}
-                                            value={epicId ?? ''}
-                                            onChange={(e) =>
-                                                navigate({ to: '/tasks', search: (s) => ({ ...s, epicId: e.target.value || undefined, page: 1 }) })
-                                            }
-                                        >
-                                            <option value="">Any</option>
-                                            {Object.values(epics).map((ep) => (
-                                                <option key={ep.id} value={ep.id}>
-                                                    {ep.title}
-                                                </option>
-                                            ))}
-                                        </select>
-                                    </Field>
-
-                                    <Field label="Page size">
-                                        <select
-                                            className={selectClass}
-                                            value={String(pageSize)}
-                                            onChange={(e) =>
-                                                navigate({ to: '/tasks', search: (s) => ({ ...s, pageSize: Number(e.target.value), page: 1 }) })
-                                            }
-                                        >
-                                            <option value="10">10</option>
-                                            <option value="20">20</option>
-                                            <option value="50">50</option>
-                                        </select>
-                                    </Field>
-
-                                    <div className="flex flex-wrap gap-2">
-                                        <Button
-                                            isQuiet
-                                            onPress={() => navigate({ to: '/tasks', search: (s) => ({ ...s, q: '', status: '', priority: '', epicId: undefined, page: 1 }) })}
-                                        >
-                                            Clear
-                                        </Button>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
+                        <TasksFiltersPanel
+                            epics={epics}
+                            value={{ epicId, q, status, priority, page, pageSize }}
+                            onChange={(next) => navigate({ to: '/tasks', search: (s) => ({ ...s, ...next }) })}
+                            onClear={() =>
+                                navigate({
+                                    to: '/tasks',
+                                    search: (s) => ({ ...s, q: '', status: '', priority: '', epicId: undefined, page: 1 }),
+                                })
+                            }
+                        />
                     </aside>
 
                     <section className="lg:col-span-8">
-                        <Suspense fallback={<GridSkeleton />}>
+                        <Suspense fallback={<TasksGridSkeleton />}>
                             <TasksGrid
                                 href={href}
                                 onOpenTask={(id) => navigate({ to: '/tasks', search: (s) => ({ ...s, drawer: id }) })}
@@ -197,6 +123,7 @@ function TasksRoute() {
                 <>
                     <CreateTaskPane
                         open={drawer === 'new'}
+                        epicId={epicId}
                         onClose={() =>
                             navigate({
                                 to: '/tasks',
@@ -222,252 +149,3 @@ function TasksRoute() {
         </div>
     )
 }
-
-function TasksGrid(props: { href: string; onOpenTask: (id: string) => void; onPageChange: (page: number) => void }) {
-    const data = useDeferred<CrmTasksGridDto>({ href: props.href })
-    const pages = Math.max(1, Math.ceil(data.total / data.pageSize))
-
-    return (
-        <div className="space-y-3">
-            <div className="flex items-center justify-between gap-3">
-                <div className="text-sm text-zinc-600 dark:text-zinc-300">
-                    {data.total} total • page {data.page} / {pages}
-                </div>
-                <div className="flex gap-2">
-                    <Button isQuiet isDisabled={data.page <= 1} onPress={() => props.onPageChange(data.page - 1)}>
-                        Prev
-                    </Button>
-                    <Button isQuiet isDisabled={data.page >= pages} onPress={() => props.onPageChange(data.page + 1)}>
-                        Next
-                    </Button>
-                </div>
-            </div>
-
-            <div className="overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-950/40">
-                <table className="w-full text-sm">
-                    <thead className="bg-zinc-50 text-left text-xs uppercase tracking-wide text-zinc-500 dark:bg-zinc-950/60 dark:text-zinc-400">
-                        <tr>
-                            <th className="px-4 py-3">Title</th>
-                            <th className="px-4 py-3">Status</th>
-                            <th className="px-4 py-3">Priority</th>
-                            <th className="px-4 py-3">Updated</th>
-                            <th className="px-4 py-3"></th>
-                        </tr>
-                    </thead>
-                    <tbody className="divide-y divide-zinc-200 dark:divide-zinc-800">
-                        {data.items.map((t) => (
-                            <tr key={t.id} data-testid="tasks-row">
-                                <td className="px-4 py-3">
-                                    <div className="font-medium">{t.title}</div>
-                                    <div className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">{t.id}</div>
-                                </td>
-                                <td className="px-4 py-3">{t.status.replaceAll('_', ' ')}</td>
-                                <td className="px-4 py-3">{t.priority}</td>
-                                <td className="px-4 py-3">{new Date(t.updatedAt).toLocaleString()}</td>
-                                <td className="px-4 py-3 text-right">
-                                    <Button isQuiet onPress={() => props.onOpenTask(t.id)}>
-                                        Open
-                                    </Button>
-                                </td>
-                            </tr>
-                        ))}
-                    </tbody>
-                </table>
-            </div>
-        </div>
-    )
-}
-
-function GridSkeleton() {
-    return (
-        <div className="space-y-3" data-testid="tasks-grid-skeleton">
-            <div className="h-4 w-48 rounded bg-zinc-200 dark:bg-zinc-800" />
-            <div className="overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-950/40">
-                <div className="space-y-0">
-                    {Array.from({ length: 6 }).map((_, i) => (
-                        <div key={i} className="flex gap-3 border-b border-zinc-200 px-4 py-3 dark:border-zinc-800">
-                            <div className="h-4 w-[55%] rounded bg-zinc-200 dark:bg-zinc-800" />
-                            <div className="h-4 w-[15%] rounded bg-zinc-200 dark:bg-zinc-800" />
-                            <div className="h-4 w-[15%] rounded bg-zinc-200 dark:bg-zinc-800" />
-                            <div className="ml-auto h-4 w-16 rounded bg-zinc-200 dark:bg-zinc-800" />
-                        </div>
-                    ))}
-                </div>
-            </div>
-        </div>
-    )
-}
-
-function CreateTaskPane(props: { open: boolean; onClose: () => void }) {
-    const { epicId } = Route.useSearch()
-    const [busy, setBusy] = useState(false)
-    const [title, setTitle] = useState('')
-    const [prio, setPrio] = useState('medium')
-    const [collaborators, setCollaborators] = useState('')
-    const [tags, setTags] = useState('')
-    const [estimateMinutes, setEstimateMinutes] = useState('')
-    const [errors, setErrors] = useState<ValidationErrors | null>(null)
-
-    if (!props.open) return null
-
-    const save = async () => {
-        if (busy) return
-        setBusy(true)
-        setErrors(null)
-
-        const collaboratorIds = collaborators.trim() ? collaborators.split(',').map((s) => s.trim()) : []
-        const tagList = tags.trim() ? tags.split(',').map((s) => s.trim()) : []
-        const est = estimateMinutes.trim() ? Number(estimateMinutes.trim()) : null
-
-        const req: CreateTaskRequest = {
-            title,
-            priority: prio,
-            epicId: epicId ?? null,
-            accountId: null,
-            assigneeId: null,
-            collaboratorIds,
-            dueAt: null,
-            estimateMinutes: Number.isFinite(est) ? est : null,
-            tags: tagList,
-        }
-
-        try {
-            const parsed = CreateTaskRequestSchema.safeParse(req)
-            if (!parsed.success) {
-                // Only enforce max-length client-side here; let server stay the source of truth for required fields.
-                const tooBig = parsed.error.issues.find((i) => i.path[0] === 'title' && i.code === 'too_big')
-                if (tooBig) {
-                    setErrors({ Title: [tooBig.message] })
-                    return
-                }
-            }
-
-            const result = await mutateCrmTasks(req)
-            if (!result.ok) {
-                if ('validation' in result) {
-                    setErrors(result.validation)
-                    return
-                }
-                pushToast({ tone: 'danger', title: 'Create failed', message: result.error })
-                return
-            }
-
-            pushToast({ tone: 'success', title: 'Task created', message: result.value.title })
-            // Close pane while keeping URL state (filters/paging/search).
-            props.onClose()
-        } finally {
-            setBusy(false)
-        }
-    }
-
-    return (
-        <div className="fixed inset-0 z-40" aria-label="Create task pane">
-            <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" onClick={props.onClose} />
-            <aside className="absolute right-0 top-0 h-full w-[min(520px,100vw)] border-l border-zinc-200 bg-white shadow-xl dark:border-zinc-800 dark:bg-zinc-950">
-                <div className="flex h-full flex-col">
-                    <div className="border-b border-zinc-200 px-5 py-4 dark:border-zinc-800">
-                        <Heading level={3}>New task</Heading>
-                        <div className="mt-1 text-sm text-zinc-600 dark:text-zinc-300">
-                            Server validation is the source of truth. Fix errors and save again.
-                        </div>
-                    </div>
-
-                    <div className="flex-1 overflow-auto px-5 py-4">
-                        <div className="space-y-4">
-                            <div>
-                                <TextField label="Title" value={title} onChange={setTitle} />
-                                {errors?.Title?.length ? (
-                                    <div className="mt-2 rounded-lg border border-red-500/30 bg-red-500/10 p-2 text-sm text-red-800 dark:text-red-200" data-testid="create-title-error">
-                                        {errors.Title[0]}
-                                    </div>
-                                ) : null}
-                            </div>
-
-                            <Field label="Priority">
-                                <select className={selectClass} value={prio} onChange={(e) => setPrio(e.target.value)}>
-                                    <option value="low">Low</option>
-                                    <option value="medium">Medium</option>
-                                    <option value="high">High</option>
-                                </select>
-                            </Field>
-
-                            <TextField
-                                label="Collaborator IDs (comma-separated)"
-                                description="Leave blanks between commas to prove nested RuleForEach validation."
-                                value={collaborators}
-                                onChange={setCollaborators}
-                            />
-
-                            <TextField
-                                label="Tags (comma-separated)"
-                                description="Leave blanks between commas to prove nested RuleForEach validation."
-                                value={tags}
-                                onChange={setTags}
-                            />
-
-                            <TextField
-                                label="Estimate minutes"
-                                description="Try a negative number to trigger server validation."
-                                inputMode="numeric"
-                                value={estimateMinutes}
-                                onChange={setEstimateMinutes}
-                            />
-
-                            {errors ? (
-                                <div
-                                    className="rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-900 dark:text-red-100"
-                                    data-testid="create-error-summary"
-                                >
-                                    <div className="text-xs font-semibold uppercase tracking-wide text-red-700 dark:text-red-200">
-                                        Validation summary
-                                    </div>
-                                    <div className="mt-2 space-y-1">
-                                        {Object.entries(errors).map(([k, v]) => (
-                                            <div key={k} className="flex flex-wrap gap-x-2">
-                                                <span className="font-mono text-xs">{k}</span>
-                                                <span className="text-sm">{v?.[0]}</span>
-                                            </div>
-                                        ))}
-                                    </div>
-                                </div>
-                            ) : null}
-
-                            {errors ? (
-                                <details className="rounded-xl border border-zinc-200 bg-white p-3 text-sm shadow-sm dark:border-zinc-800 dark:bg-zinc-950/40">
-                                    <summary className="cursor-pointer text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
-                                        Validation details
-                                    </summary>
-                                    <pre className="mt-2 overflow-auto text-xs">{JSON.stringify(errors, null, 2)}</pre>
-                                </details>
-                            ) : null}
-                        </div>
-                    </div>
-
-                    <div className="border-t border-zinc-200 px-5 py-4 dark:border-zinc-800">
-                        <div className="flex flex-wrap justify-end gap-2">
-                            <Button isQuiet onPress={props.onClose}>
-                                Cancel
-                            </Button>
-                            <Button onPress={() => void save()} isDisabled={busy} data-testid="create-save">
-                                {busy ? 'Saving…' : 'Save'}
-                            </Button>
-                        </div>
-                    </div>
-                </div>
-            </aside>
-        </div>
-    )
-}
-
-const selectClass =
-    'w-full rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-950 outline-none focus:ring-2 focus:ring-blue-500/30 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-50'
-
-function Field(props: { label: string; children: React.ReactNode }) {
-    return (
-        <div>
-            <div className="mb-1 text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">{props.label}</div>
-            {props.children}
-        </div>
-    )
-}
-
