@@ -55,6 +55,9 @@ public class ExtractTypeScript : MSBuildTask
                         var filename = block.FileName;
                         var tsContent = block.Content;
                         var targetPath = Path.Combine(OutputDirectory, filename);
+                        var dir = Path.GetDirectoryName(targetPath);
+                        if (!string.IsNullOrWhiteSpace(dir) && !Directory.Exists(dir))
+                            Directory.CreateDirectory(dir);
 
                         // Only write if content changed
                         if (!File.Exists(targetPath) || File.ReadAllText(targetPath) != tsContent)
@@ -91,6 +94,9 @@ public class ExtractTypeScript : MSBuildTask
                         var filename = block.FileName;
                         var tsContent = block.Content;
                         var targetPath = Path.Combine(OutputDirectory, filename);
+                        var dir = Path.GetDirectoryName(targetPath);
+                        if (!string.IsNullOrWhiteSpace(dir) && !Directory.Exists(dir))
+                            Directory.CreateDirectory(dir);
 
                         if (!File.Exists(targetPath) || File.ReadAllText(targetPath) != tsContent)
                         {
