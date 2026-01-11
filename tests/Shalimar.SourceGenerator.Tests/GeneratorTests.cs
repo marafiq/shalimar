@@ -593,6 +593,76 @@ public sealed record TaskDto(string Title);
     }
 
     [Fact]
+    public void Generator_Respects_ForTsxFile_Binding_For_Virtual_Route_Config()
+    {
+        var source = """
+using System;
+
+namespace Shalimar
+{
+    public interface IComponentProps { }
+
+    public static class RouteBuilderExtensions
+    {
+        public static RouteHandlerBuilder AsComponent<TProps>(this RouteHandlerBuilder builder) where TProps : IComponentProps => builder;
+        public static RouteHandlerBuilder ForTsxFile(this RouteHandlerBuilder builder, string path) => builder;
+    }
+}
+
+public sealed class RouteHandlerBuilder
+{
+    public RouteHandlerBuilder WithName(string name) => this;
+}
+
+public sealed class WebApplication
+{
+    public RouteHandlerBuilder MapGet(string pattern, Delegate handler) => new();
+}
+
+namespace TestApp;
+
+public static class App
+{
+    public static void Configure(WebApplication app)
+    {
+        app.MapGet("/work", () => new WorkProps("ok"))
+            .ForTsxFile("Features/V2/Workbench/WorkbenchPage.tsx")
+            .AsComponent<WorkProps>();
+    }
+}
+
+public sealed record WorkProps(string Message) : Shalimar.IComponentProps;
+""";
+
+        var syntaxTree = CSharpSyntaxTree.ParseText(source, CSharpParseOptions.Default);
+        var references = new[]
+        {
+            MetadataReference.CreateFromFile(typeof(object).Assembly.Location),
+            MetadataReference.CreateFromFile(typeof(Enumerable).Assembly.Location),
+        };
+
+        var compilation = CSharpCompilation.Create(
+            assemblyName: "TestApp",
+            syntaxTrees: new[] { syntaxTree },
+            references: references,
+            options: new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary, nullableContextOptions: NullableContextOptions.Enable));
+
+        var generator = new ShalimarGenerator();
+        GeneratorDriver driver = CSharpGeneratorDriver.Create(generator);
+        driver = driver.RunGeneratorsAndUpdateCompilation(compilation, out var outputCompilation, out var diagnostics);
+
+        Assert.Empty(diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error));
+
+        var generated = outputCompilation.SyntaxTrees
+            .Where(t => t != syntaxTree)
+            .Select(t => t.ToString())
+            .ToImmutableArray();
+
+        var routes = Assert.Single(generated, t => t.Contains("SHALIMAR_TS: shalimar-routes.g.ts", StringComparison.Ordinal));
+        Assert.Contains("route('work', 'Features/V2/Workbench/WorkbenchPage.tsx')", routes, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void Generator_Emits_SseRefs_And_Sse_Generic_Type()
     {
         var source = """

@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Routing;
+using System.Linq.Expressions;
 
 namespace Shalimar;
 
@@ -91,12 +92,50 @@ public static class RouteBuilderExtensions
     }
 
     /// <summary>
-    /// Associates a JSX file with this component route.
+    /// Explicitly binds a TSX module to render this route/component.
+    /// This is the canonical way to bind server routes to client renderers (no conventions, no magic).
     /// </summary>
-    public static RouteHandlerBuilder WithJsxFile(this RouteHandlerBuilder builder, string path)
+    public static RouteHandlerBuilder ForTsxFile(this RouteHandlerBuilder builder, string path)
     {
-        builder.WithMetadata(new ShalimarJsxFileMetadata(path));
+        builder.WithMetadata(new ShalimarTsxFileMetadata(path));
         return builder;
+    }
+
+    /// <summary>
+    /// Binds a mode endpoint to a specific leaf node inside the component props tree.
+    /// This is how the generator knows "where does this Deferred/Lazy/Stream/Sse leaf load from?".
+    /// </summary>
+    public static RouteHandlerBuilder ForNode<TProps>(this RouteHandlerBuilder builder, Expression<Func<TProps, object?>> node)
+        where TProps : IComponentProps
+    {
+        builder.WithMetadata(new ShalimarNodeMetadata(typeof(TProps), CanonicalizeNodePath(node)));
+        return builder;
+    }
+
+    private static string CanonicalizeNodePath<TProps>(Expression<Func<TProps, object?>> expr)
+    {
+        // Accept expressions like:
+        //   p => p.AgentPanel.Insights
+        //   p => p.AgentPanel.Props.Insights   (we ignore the wrapper's Props segment)
+        //   p => (object)p.AgentPanel.Insights (box/conversion)
+
+        Expression body = expr.Body;
+        while (body is UnaryExpression u && (u.NodeType == ExpressionType.Convert || u.NodeType == ExpressionType.ConvertChecked))
+            body = u.Operand;
+
+        var segments = new Stack<string>();
+        while (body is MemberExpression m)
+        {
+            // Drop Component<T>.Props to keep paths stable (AgentPanel.Insights, not AgentPanel.Props.Insights).
+            if (!string.Equals(m.Member.Name, "Props", StringComparison.Ordinal))
+                segments.Push(m.Member.Name);
+            body = m.Expression!;
+        }
+
+        if (segments.Count == 0)
+            throw new InvalidOperationException("ForNode requires a member-access expression like p => p.X.Y.Z");
+
+        return string.Join(".", segments);
     }
 }
 
@@ -106,9 +145,14 @@ public static class RouteBuilderExtensions
 public record ShalimarComponentMetadata(Type PropsType);
 
 /// <summary>
-/// Metadata for the JSX file path.
+/// Metadata for the TSX file path.
 /// </summary>
-public record ShalimarJsxFileMetadata(string Path);
+public record ShalimarTsxFileMetadata(string Path);
+
+/// <summary>
+/// Metadata binding a mode endpoint to a leaf node path for a component props type.
+/// </summary>
+public record ShalimarNodeMetadata(Type ComponentPropsType, string NodePath);
 
 /// <summary>
 /// Metadata indicating this endpoint is a Shalimar deferred query.

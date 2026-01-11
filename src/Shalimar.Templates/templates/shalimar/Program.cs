@@ -76,7 +76,7 @@ app.MapGet("/", async (HttpContext http, CrmRepository repo) =>
         Activity: snapshot.Activity.Take(12).ToList(),
         AgentPanel: agentPanel);
     return ShalimarTypedResults.Component(MakeContext(app), props, "Shalimar App");
-}).AsComponent<DashboardProps>();
+}).ForTsxFile("Features/Home/route.tsx").AsComponent<DashboardProps>();
 
 // Deferred mode: resolves after hydration via typed handle in props.
 app.MapGet("/crm/insights", (CrmRepository repo) => repo.Insights())
@@ -159,7 +159,7 @@ app.MapGet("/tasks", async (HttpContext http, CrmRepository repo) =>
         TasksGrid: Shalimar.Generated.Components.TasksGridProps.Deferred.CrmTasksGrid()));
     var props = new TasksProps("Tasks", repo.Snapshot(), grid);
     return ShalimarTypedResults.Component(MakeContext(app), props, "Shalimar App");
-}).AsComponent<TasksProps>();
+}).ForTsxFile("Features/Tasks/route.tsx").AsComponent<TasksProps>();
 
 static async Task WriteSseAsync<T>(HttpContext http, T data, CancellationToken ct)
 {
@@ -191,19 +191,19 @@ app.MapGet("/tasks/board", async (HttpContext http, CrmRepository repo) =>
 {
     var props = new TaskBoardProps("Board", repo.Snapshot());
     return ShalimarTypedResults.Component(MakeContext(app), props, "Shalimar App");
-}).AsComponent<TaskBoardProps>();
+}).ForTsxFile("Features/Tasks/Board/route.tsx").AsComponent<TaskBoardProps>();
 
 app.MapGet("/tasks/{taskId}", async (HttpContext http, string taskId) =>
 {
     var props = new TaskDetailProps("Task", taskId);
     return ShalimarTypedResults.Component(MakeContext(app), props, "Shalimar App");
-}).AsComponent<TaskDetailProps>();
+}).ForTsxFile("Features/Tasks/$taskId/route.tsx").AsComponent<TaskDetailProps>();
 
 app.MapGet("/accounts", async (HttpContext http, CrmRepository repo) =>
 {
     var props = new AccountsProps("Accounts", repo.Snapshot());
     return ShalimarTypedResults.Component(MakeContext(app), props, "Shalimar App");
-}).AsComponent<AccountsProps>();
+}).ForTsxFile("Features/Accounts/route.tsx").AsComponent<AccountsProps>();
 
 app.MapGet("/accounts/{accountId}", async (HttpContext http, string accountId, CrmRepository repo) =>
 {
@@ -212,13 +212,13 @@ app.MapGet("/accounts/{accountId}", async (HttpContext http, string accountId, C
     var owner = account is null ? null : repo.Users.FirstOrDefault(u => u.Id == account.OwnerId);
     var props = new AccountDetailProps("Account", accountId, account, contacts, owner);
     return ShalimarTypedResults.Component(MakeContext(app), props, "Shalimar App");
-}).AsComponent<AccountDetailProps>();
+}).ForTsxFile("Features/Accounts/$accountId/route.tsx").AsComponent<AccountDetailProps>();
 
 app.MapGet("/settings", async (HttpContext http) =>
 {
     var props = new SettingsProps("Settings", app.Environment.EnvironmentName);
     return ShalimarTypedResults.Component(MakeContext(app), props, "Shalimar App");
-}).AsComponent<SettingsProps>();
+}).ForTsxFile("Features/Settings/route.tsx").AsComponent<SettingsProps>();
 
 // Shalimar-style "feature endpoints" (no /api). These will be replaced by generated hooks later.
 app.MapGet("/crm/snapshot", (CrmRepository repo) => Results.Ok(repo.Snapshot()));

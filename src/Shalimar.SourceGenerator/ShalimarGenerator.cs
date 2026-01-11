@@ -140,12 +140,14 @@ public class ShalimarGenerator : IIncrementalGenerator
 
         // Try to find the route path from the MapGet/MapPost call
         var routePath = FindRoutePath(invocation);
+        var tsxFile = FindForTsxFile(invocation);
 
         return new ComponentInfo(
             typeSymbol.Name,
             typeSymbol.ContainingNamespace?.ToDisplayString() ?? "",
             routePath ?? "/",
-            GetProperties(typeSymbol));
+            GetProperties(typeSymbol),
+            tsxFile);
     }
 
     private static DeferredInfo? GetDeferredInfo(GeneratorSyntaxContext context)
@@ -166,7 +168,8 @@ public class ShalimarGenerator : IIncrementalGenerator
 
         var method = MakeRefMethodName(routePath!);
         var parent = FindForComponentTypeName(invocation);
-        return new DeferredInfo(typeSymbol, routePath!, method, parent);
+        var nodePath = FindForNodePath(invocation);
+        return new DeferredInfo(typeSymbol, routePath!, method, parent, nodePath);
     }
 
     private static LazyInfo? GetLazyInfo(GeneratorSyntaxContext context)
@@ -187,7 +190,8 @@ public class ShalimarGenerator : IIncrementalGenerator
 
         var method = MakeRefMethodName(routePath!);
         var parent = FindForComponentTypeName(invocation);
-        return new LazyInfo(typeSymbol, routePath!, method, parent);
+        var nodePath = FindForNodePath(invocation);
+        return new LazyInfo(typeSymbol, routePath!, method, parent, nodePath);
     }
 
     private static StreamInfo? GetStreamInfo(GeneratorSyntaxContext context)
@@ -208,7 +212,8 @@ public class ShalimarGenerator : IIncrementalGenerator
 
         var method = MakeRefMethodName(routePath!);
         var parent = FindForComponentTypeName(invocation);
-        return new StreamInfo(typeSymbol, routePath!, method, parent);
+        var nodePath = FindForNodePath(invocation);
+        return new StreamInfo(typeSymbol, routePath!, method, parent, nodePath);
     }
 
     private static SseInfo? GetSseInfo(GeneratorSyntaxContext context)
@@ -229,7 +234,91 @@ public class ShalimarGenerator : IIncrementalGenerator
 
         var method = MakeRefMethodName(routePath!);
         var parent = FindForComponentTypeName(invocation);
-        return new SseInfo(typeSymbol, routePath!, method, parent);
+        var nodePath = FindForNodePath(invocation);
+        return new SseInfo(typeSymbol, routePath!, method, parent, nodePath);
+    }
+
+    private static string? FindForTsxFile(InvocationExpressionSyntax invocation)
+    {
+        if (invocation.Expression is not MemberAccessExpressionSyntax access)
+            return null;
+
+        ExpressionSyntax? current = access.Expression;
+        while (current is InvocationExpressionSyntax inv)
+        {
+            if (inv.Expression is MemberAccessExpressionSyntax ma)
+            {
+                if (ma.Name is IdentifierNameSyntax id && id.Identifier.Text == "ForTsxFile")
+                {
+                    if (inv.ArgumentList.Arguments.Count == 1 &&
+                        inv.ArgumentList.Arguments[0].Expression is LiteralExpressionSyntax lit &&
+                        lit.IsKind(SyntaxKind.StringLiteralExpression))
+                    {
+                        return lit.Token.ValueText;
+                    }
+                }
+                current = ma.Expression;
+                continue;
+            }
+            break;
+        }
+
+        return null;
+    }
+
+    private static string? FindForNodePath(InvocationExpressionSyntax invocation)
+    {
+        if (invocation.Expression is not MemberAccessExpressionSyntax access)
+            return null;
+
+        ExpressionSyntax? current = access.Expression;
+        while (current is InvocationExpressionSyntax inv)
+        {
+            if (inv.Expression is MemberAccessExpressionSyntax ma)
+            {
+                // Look for .ForNode<TProps>(p => p.X.Y.Props.Z)
+                if (ma.Name is GenericNameSyntax gn && gn.Identifier.Text == "ForNode")
+                {
+                    if (inv.ArgumentList.Arguments.Count == 1)
+                    {
+                        var expr = inv.ArgumentList.Arguments[0].Expression;
+                        var path = ExtractMemberPathFromLambda(expr);
+                        if (!string.IsNullOrWhiteSpace(path))
+                            return path;
+                    }
+                }
+                current = ma.Expression;
+                continue;
+            }
+            break;
+        }
+
+        return null;
+    }
+
+    private static string? ExtractMemberPathFromLambda(ExpressionSyntax expr)
+    {
+        // p => p.A.B.Props.C  (drop ".Props")
+        ExpressionSyntax body = expr;
+        if (body is ParenthesizedLambdaExpressionSyntax pl && pl.ExpressionBody is not null)
+            body = pl.ExpressionBody;
+        if (body is SimpleLambdaExpressionSyntax sl && sl.ExpressionBody is not null)
+            body = sl.ExpressionBody;
+
+        // strip casts
+        while (body is CastExpressionSyntax cast)
+            body = cast.Expression;
+
+        var segments = new Stack<string>();
+        while (body is MemberAccessExpressionSyntax ma)
+        {
+            var name = ma.Name.Identifier.ValueText;
+            if (!string.Equals(name, "Props", StringComparison.Ordinal))
+                segments.Push(name);
+            body = ma.Expression;
+        }
+
+        return segments.Count == 0 ? null : string.Join(".", segments);
     }
 
     private static MutationInfo? GetMutationInfo(GeneratorSyntaxContext context)
@@ -1238,7 +1327,16 @@ public class ShalimarGenerator : IIncrementalGenerator
         //   "/accounts/{accountId}"  -> Features/Accounts/$accountId/route.tsx
         // Each segment becomes a folder name (PascalCase) except parameter segments (`{x}`) which become `$x`.
 
-        var routesTree = BuildRoutesTree(components.Select(c => c.Path).ToList());
+        var mappings = components
+            .Select(c =>
+            {
+                var normalized = c.Path == "/" ? "/" : "/" + c.Path.Trim('/');
+                var file = !string.IsNullOrWhiteSpace(c.TsxFile) ? c.TsxFile! : MapPathToRouteFile(normalized);
+                return (Path: normalized, FilePath: file);
+            })
+            .ToList();
+
+        var routesTree = BuildRoutesTree(mappings);
         EmitVirtualRoutes(tsSb, routesTree, indent: "    ");
 
         tsSb.AppendLine("])");
@@ -1267,17 +1365,20 @@ public class ShalimarGenerator : IIncrementalGenerator
         }
     }
 
-    private static RouteNode BuildRoutesTree(List<string> paths)
+    private static RouteNode BuildRoutesTree(List<(string Path, string FilePath)> mappings)
     {
         var root = new RouteNode("");
 
         // Ensure deterministic ordering.
-        foreach (var path in paths.Distinct().OrderBy(p => p, StringComparer.Ordinal))
+        foreach (var m in mappings
+                     .GroupBy(x => x.Path, StringComparer.Ordinal)
+                     .Select(g => g.First())
+                     .OrderBy(x => x.Path, StringComparer.Ordinal))
         {
-            var normalized = path == "/" ? "/" : "/" + path.Trim('/'); // normalize
+            var normalized = m.Path == "/" ? "/" : "/" + m.Path.Trim('/'); // normalize
             if (normalized == "/")
             {
-                root.FilePath = "Features/Home/route.tsx";
+                root.FilePath = m.FilePath;
                 continue;
             }
 
@@ -1295,7 +1396,7 @@ public class ShalimarGenerator : IIncrementalGenerator
                 current = child;
             }
 
-            current.FilePath = MapPathToRouteFile(normalized);
+            current.FilePath = m.FilePath;
         }
 
         // Sort children at each node for stable output.
@@ -2073,13 +2174,15 @@ public class ShalimarGenerator : IIncrementalGenerator
         public string Namespace { get; }
         public string Path { get; }
         public ImmutableArray<PropertyInfo> Properties { get; }
+        public string? TsxFile { get; }
 
-        public ComponentInfo(string typeName, string ns, string path, ImmutableArray<PropertyInfo> properties)
+        public ComponentInfo(string typeName, string ns, string path, ImmutableArray<PropertyInfo> properties, string? tsxFile)
         {
             TypeName = typeName;
             Namespace = ns;
             Path = path;
             Properties = properties;
+            TsxFile = tsxFile;
         }
     }
 
@@ -2360,13 +2463,15 @@ public class ShalimarGenerator : IIncrementalGenerator
         public string Path { get; }
         public string RefMethodName { get; }
         public string? ParentComponentTypeName { get; }
+        public string? NodePath { get; }
 
-        public DeferredInfo(ITypeSymbol resultType, string path, string refMethodName, string? parentComponentTypeName)
+        public DeferredInfo(ITypeSymbol resultType, string path, string refMethodName, string? parentComponentTypeName, string? nodePath)
         {
             ResultType = resultType;
             Path = path;
             RefMethodName = refMethodName;
             ParentComponentTypeName = parentComponentTypeName;
+            NodePath = nodePath;
         }
     }
 
@@ -2376,13 +2481,15 @@ public class ShalimarGenerator : IIncrementalGenerator
         public string Path { get; }
         public string RefMethodName { get; }
         public string? ParentComponentTypeName { get; }
+        public string? NodePath { get; }
 
-        public LazyInfo(ITypeSymbol resultType, string path, string refMethodName, string? parentComponentTypeName)
+        public LazyInfo(ITypeSymbol resultType, string path, string refMethodName, string? parentComponentTypeName, string? nodePath)
         {
             ResultType = resultType;
             Path = path;
             RefMethodName = refMethodName;
             ParentComponentTypeName = parentComponentTypeName;
+            NodePath = nodePath;
         }
     }
 
@@ -2392,13 +2499,15 @@ public class ShalimarGenerator : IIncrementalGenerator
         public string Path { get; }
         public string RefMethodName { get; }
         public string? ParentComponentTypeName { get; }
+        public string? NodePath { get; }
 
-        public StreamInfo(ITypeSymbol eventType, string path, string refMethodName, string? parentComponentTypeName)
+        public StreamInfo(ITypeSymbol eventType, string path, string refMethodName, string? parentComponentTypeName, string? nodePath)
         {
             EventType = eventType;
             Path = path;
             RefMethodName = refMethodName;
             ParentComponentTypeName = parentComponentTypeName;
+            NodePath = nodePath;
         }
     }
 
@@ -2408,13 +2517,15 @@ public class ShalimarGenerator : IIncrementalGenerator
         public string Path { get; }
         public string RefMethodName { get; }
         public string? ParentComponentTypeName { get; }
+        public string? NodePath { get; }
 
-        public SseInfo(ITypeSymbol eventType, string path, string refMethodName, string? parentComponentTypeName)
+        public SseInfo(ITypeSymbol eventType, string path, string refMethodName, string? parentComponentTypeName, string? nodePath)
         {
             EventType = eventType;
             Path = path;
             RefMethodName = refMethodName;
             ParentComponentTypeName = parentComponentTypeName;
+            NodePath = nodePath;
         }
     }
 
