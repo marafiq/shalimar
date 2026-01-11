@@ -1,17 +1,34 @@
 import { Store } from '@tanstack/store'
-import type { Account, ActivityItem, Contact, Id, Task, TaskActor, TaskMessage, TaskStatus, User } from './types'
+import type {
+    Account,
+    ActivityItem,
+    Contact,
+    Epic,
+    Id,
+    Task,
+    TaskActor,
+    TaskArtifact,
+    TaskDecision,
+    TaskMessage,
+    TaskStatus,
+    User,
+} from './types'
 import * as api from './mockApi'
 
 export interface CrmState {
     users: User[]
     accounts: Record<Id, Account>
     contactsByAccount: Record<Id, Contact[]>
+    epics: Record<Id, Epic>
     tasks: Record<Id, Task>
     messagesByTask: Record<Id, TaskMessage[]>
+    artifactsByTask: Record<Id, TaskArtifact[]>
+    decisionsByTask: Record<Id, TaskDecision[]>
     activity: ActivityItem[]
     loaded: {
         users: boolean
         accounts: boolean
+        epics: boolean
         tasks: boolean
     }
 }
@@ -20,10 +37,13 @@ export const crmStore = new Store<CrmState>({
     users: [],
     accounts: {},
     contactsByAccount: {},
+    epics: {},
     tasks: {},
     messagesByTask: {},
+    artifactsByTask: {},
+    decisionsByTask: {},
     activity: [],
-    loaded: { users: false, accounts: false, tasks: false },
+    loaded: { users: false, accounts: false, epics: false, tasks: false },
 })
 
 export async function ensureUsers() {
@@ -37,6 +57,13 @@ export async function ensureAccounts() {
     const accounts = await api.listAccounts()
     const map = Object.fromEntries(accounts.map((a) => [a.id, a] as const))
     crmStore.setState((s) => ({ ...s, accounts: map, loaded: { ...s.loaded, accounts: true } }))
+}
+
+export async function ensureEpics() {
+    if (crmStore.state.loaded.epics) return
+    const epics = await api.listEpics()
+    const map = Object.fromEntries(epics.map((e) => [e.id, e] as const))
+    crmStore.setState((s) => ({ ...s, epics: map, loaded: { ...s.loaded, epics: true } }))
 }
 
 export async function ensureTasks() {
@@ -66,7 +93,9 @@ export async function createTask(title: string, accountId?: Id) {
 
 export async function updateTask(
     taskId: Id,
-    patch: Partial<Pick<Task, 'title' | 'priority' | 'assigneeId' | 'accountId' | 'dueAt'>>,
+    patch: Partial<
+        Pick<Task, 'title' | 'priority' | 'assigneeId' | 'accountId' | 'dueAt' | 'estimateMinutes' | 'collaboratorIds' | 'epicId'>
+    >,
 ) {
     const updated = await api.updateTask(taskId, patch)
     if (!updated) return
@@ -81,10 +110,62 @@ export async function setTaskStatus(taskId: Id, status: TaskStatus) {
     await refreshActivity()
 }
 
+export async function moveTask(taskId: Id, status: TaskStatus, epicId?: Id) {
+    const updated = await api.moveTask(taskId, status, epicId)
+    if (!updated) return
+    crmStore.setState((s) => ({ ...s, tasks: { ...s.tasks, [updated.id]: updated } }))
+    await refreshActivity()
+}
+
 export async function loadTaskMessages(taskId: Id) {
     if (crmStore.state.messagesByTask[taskId]) return
     const msgs = await api.listTaskMessages(taskId)
     crmStore.setState((s) => ({ ...s, messagesByTask: { ...s.messagesByTask, [taskId]: msgs } }))
+}
+
+export async function loadTaskArtifacts(taskId: Id) {
+    if (crmStore.state.artifactsByTask[taskId]) return
+    const items = await api.listTaskArtifacts(taskId)
+    crmStore.setState((s) => ({ ...s, artifactsByTask: { ...s.artifactsByTask, [taskId]: items } }))
+}
+
+export async function loadTaskDecisions(taskId: Id) {
+    if (crmStore.state.decisionsByTask[taskId]) return
+    const items = await api.listTaskDecisions(taskId)
+    crmStore.setState((s) => ({ ...s, decisionsByTask: { ...s.decisionsByTask, [taskId]: items } }))
+}
+
+export async function addTaskArtifact(
+    taskId: Id,
+    actor: TaskActor,
+    kind: TaskArtifact['kind'],
+    title: string,
+    content: string,
+) {
+    const item = await api.addTaskArtifact(taskId, actor, kind, title, content)
+    crmStore.setState((s) => ({
+        ...s,
+        artifactsByTask: { ...s.artifactsByTask, [taskId]: [item, ...(s.artifactsByTask[taskId] ?? [])] },
+    }))
+    await refreshActivity()
+    return item
+}
+
+export async function addTaskDecision(
+    taskId: Id,
+    actor: TaskActor,
+    question: string,
+    options: string[],
+    outcome: string,
+    rationale?: string,
+) {
+    const item = await api.addTaskDecision(taskId, actor, question, options, outcome, rationale)
+    crmStore.setState((s) => ({
+        ...s,
+        decisionsByTask: { ...s.decisionsByTask, [taskId]: [item, ...(s.decisionsByTask[taskId] ?? [])] },
+    }))
+    await refreshActivity()
+    return item
 }
 
 export async function postTaskMessage(taskId: Id, actor: TaskActor, body: string) {

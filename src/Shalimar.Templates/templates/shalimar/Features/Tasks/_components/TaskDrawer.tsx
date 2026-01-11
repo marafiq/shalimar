@@ -2,16 +2,21 @@ import { useStore } from '@tanstack/react-store'
 import { Button, Heading, Text, TextField } from '@react-spectrum/s2'
 import { useEffect, useMemo, useState } from 'react'
 import {
+    addTaskArtifact,
+    addTaskDecision,
     createTask,
     crmStore,
     ensureAccounts,
+    ensureEpics,
     ensureTasks,
     ensureUsers,
+    loadTaskArtifacts,
+    loadTaskDecisions,
     loadTaskMessages,
     postTaskMessage,
     updateTask,
 } from '../../Crm/store'
-import type { TaskActor } from '../../Crm/types'
+import type { ArtifactKind, Id, TaskActor, TaskPriority } from '../../Crm/types'
 import { DrawerSkeleton } from '../../App/ui/Skeletons'
 import { IconX } from '../../App/ui/icons'
 import { openModal, pushNotification, pushToast } from '../../App/ui/store'
@@ -19,6 +24,7 @@ import { openModal, pushNotification, pushToast } from '../../App/ui/store'
 export function TaskDrawer(props: {
     open: boolean
     drawer: string | undefined
+    prefillEpicId?: string
     forceSkeleton?: boolean
     forceThreadSkeleton?: boolean
     onClose: () => void
@@ -30,30 +36,65 @@ export function TaskDrawer(props: {
     const taskId = mode === 'edit' ? props.drawer : undefined
     const task = taskId ? state.tasks[taskId] : undefined
     const messages = taskId ? state.messagesByTask[taskId] : undefined
+    const artifacts = taskId ? state.artifactsByTask[taskId] : undefined
+    const decisions = taskId ? state.decisionsByTask[taskId] : undefined
 
     const title = mode === 'new' ? 'Create task' : task ? `Edit task` : 'Task'
     const [draftTitle, setDraftTitle] = useState('')
     const [message, setMessage] = useState('')
+    const [tab, setTab] = useState<'details' | 'thread' | 'decisions' | 'artifacts'>('details')
+
+    const [draftEpicId, setDraftEpicId] = useState<string>('')
+    const [draftPriority, setDraftPriority] = useState<TaskPriority>('medium')
+    const [draftAssigneeId, setDraftAssigneeId] = useState<string>('')
+    const [draftDueDate, setDraftDueDate] = useState<string>('') // YYYY-MM-DD
+    const [draftEstimate, setDraftEstimate] = useState<string>('') // minutes
+    const [draftCollaborators, setDraftCollaborators] = useState<Record<Id, boolean>>({})
+
+    const [artifactKind, setArtifactKind] = useState<ArtifactKind>('notes')
+    const [artifactTitle, setArtifactTitle] = useState('')
+    const [artifactContent, setArtifactContent] = useState('')
+
+    const [decisionQuestion, setDecisionQuestion] = useState('')
+    const [decisionOptions, setDecisionOptions] = useState('') // newline separated
+    const [decisionOutcome, setDecisionOutcome] = useState('')
+    const [decisionRationale, setDecisionRationale] = useState('')
 
     useEffect(() => {
         if (!props.open) return
-        void Promise.all([ensureUsers(), ensureAccounts(), ensureTasks()])
+        void Promise.all([ensureUsers(), ensureAccounts(), ensureEpics(), ensureTasks()])
     }, [props.open])
 
     useEffect(() => {
         if (!props.open) return
         if (mode === 'new') {
             setDraftTitle('')
+            setTab('details')
+            setDraftEpicId(props.prefillEpicId ?? '')
+            setDraftPriority('medium')
+            setDraftAssigneeId('')
+            setDraftDueDate('')
+            setDraftEstimate('')
+            setDraftCollaborators({})
             return
         }
         setDraftTitle(task?.title ?? '')
+        setTab('details')
+        setDraftEpicId(task?.epicId ?? '')
+        setDraftPriority(task?.priority ?? 'medium')
+        setDraftAssigneeId(task?.assigneeId ?? '')
+        setDraftDueDate(task?.dueAt ? task.dueAt.slice(0, 10) : '')
+        setDraftEstimate(typeof task?.estimateMinutes === 'number' ? String(task.estimateMinutes) : '')
+        setDraftCollaborators(Object.fromEntries((task?.collaboratorIds ?? []).map((id) => [id, true])))
         if (taskId) void loadTaskMessages(taskId)
+        if (taskId) void loadTaskArtifacts(taskId)
+        if (taskId) void loadTaskDecisions(taskId)
     }, [props.open, mode, taskId, task?.title])
 
     const headerMeta = useMemo(() => {
         if (mode === 'new') return { subtitle: 'Create and assign work to the agent + humans.' }
         if (!task) return { subtitle: 'Loading…' }
-        return { subtitle: `Status: ${task.status.replaceAll('_', ' ')} • Priority: ${task.priority}` }
+        return { subtitle: `Status: ${task.status.replaceAll('_', ' ')} • Priority: ${task.priority} • Epic: ${task.epicId ?? 'none'}` }
     }, [mode, task])
 
     if (!props.open) return null
@@ -80,48 +121,146 @@ export function TaskDrawer(props: {
                             <DrawerSkeleton />
                         ) : (
                             <div className="space-y-6">
+                                <div className="flex flex-wrap gap-2 rounded-2xl border border-black/10 bg-black/5 p-2 text-sm dark:border-white/10 dark:bg-white/10">
+                                    <Button isQuiet={tab !== 'details'} onPress={() => setTab('details')}>
+                                        Details
+                                    </Button>
+                                    <Button isQuiet={tab !== 'thread'} onPress={() => setTab('thread')}>
+                                        Thread
+                                    </Button>
+                                    <Button isQuiet={tab !== 'decisions'} onPress={() => setTab('decisions')}>
+                                        Decisions
+                                    </Button>
+                                    <Button isQuiet={tab !== 'artifacts'} onPress={() => setTab('artifacts')}>
+                                        Artifacts
+                                    </Button>
+                                </div>
+
                                 <section className="space-y-3">
-                                    <TextField
-                                        label="Title"
-                                        placeholder="Write a clear outcome…"
-                                        value={draftTitle}
-                                        onChange={setDraftTitle}
-                                    />
-                                    <div className="grid gap-3 sm:grid-cols-2">
-                                        <div className="rounded-xl border border-black/10 p-3 text-sm dark:border-white/10">
-                                            <div className="text-xs font-semibold uppercase tracking-wide opacity-60">
-                                                Mode
+                                    {tab === 'details' ? (
+                                        <>
+                                            <TextField
+                                                label="Title"
+                                                placeholder="Write a clear outcome…"
+                                                value={draftTitle}
+                                                onChange={setDraftTitle}
+                                            />
+
+                                            <div className="grid gap-3 sm:grid-cols-2">
+                                                <Field label="Epic">
+                                                    <select
+                                                        className={selectClass}
+                                                        value={draftEpicId}
+                                                        onChange={(e) => setDraftEpicId(e.target.value)}
+                                                    >
+                                                        <option value="">No epic</option>
+                                                        {Object.values(state.epics).map((e) => (
+                                                            <option key={e.id} value={e.id}>
+                                                                {e.title}
+                                                            </option>
+                                                        ))}
+                                                    </select>
+                                                </Field>
+                                                <Field label="Priority">
+                                                    <select
+                                                        className={selectClass}
+                                                        value={draftPriority}
+                                                        onChange={(e) => setDraftPriority(e.target.value as TaskPriority)}
+                                                    >
+                                                        <option value="low">Low</option>
+                                                        <option value="medium">Medium</option>
+                                                        <option value="high">High</option>
+                                                    </select>
+                                                </Field>
+                                                <Field label="Due date">
+                                                    <input
+                                                        type="date"
+                                                        className={inputClass}
+                                                        value={draftDueDate}
+                                                        onChange={(e) => setDraftDueDate(e.target.value)}
+                                                    />
+                                                </Field>
+                                                <Field label="Estimate (minutes)">
+                                                    <input
+                                                        inputMode="numeric"
+                                                        className={inputClass}
+                                                        placeholder="e.g. 45"
+                                                        value={draftEstimate}
+                                                        onChange={(e) => setDraftEstimate(e.target.value)}
+                                                    />
+                                                </Field>
+                                                <Field label="Assignee">
+                                                    <select
+                                                        className={selectClass}
+                                                        value={draftAssigneeId}
+                                                        onChange={(e) => setDraftAssigneeId(e.target.value)}
+                                                    >
+                                                        <option value="">Unassigned</option>
+                                                        {state.users.map((u) => (
+                                                            <option key={u.id} value={u.id}>
+                                                                {u.name}
+                                                            </option>
+                                                        ))}
+                                                    </select>
+                                                </Field>
+                                                <div className="rounded-xl border border-black/10 p-3 text-sm dark:border-white/10">
+                                                    <div className="text-xs font-semibold uppercase tracking-wide opacity-60">Collaborators</div>
+                                                    <div className="mt-2 space-y-2">
+                                                        {state.users.map((u) => (
+                                                            <label key={u.id} className="flex items-center gap-2">
+                                                                <input
+                                                                    type="checkbox"
+                                                                    checked={draftCollaborators[u.id] === true}
+                                                                    onChange={(e) =>
+                                                                        setDraftCollaborators((m) => ({ ...m, [u.id]: e.target.checked }))
+                                                                    }
+                                                                />
+                                                                <span className="text-sm">{u.name}</span>
+                                                            </label>
+                                                        ))}
+                                                    </div>
+                                                </div>
                                             </div>
-                                            <div className="mt-1 font-medium">
-                                                {mode === 'new' ? 'Create' : 'Edit'}
+
+                                            <div className="grid gap-3 sm:grid-cols-2">
+                                                <div className="rounded-xl border border-black/10 p-3 text-sm dark:border-white/10">
+                                                    <div className="text-xs font-semibold uppercase tracking-wide opacity-60">Mode</div>
+                                                    <div className="mt-1 font-medium">{mode === 'new' ? 'Create' : 'Edit'}</div>
+                                                    <div className="mt-1 opacity-70">
+                                                        This drawer is the consistent “agent work surface”.
+                                                    </div>
+                                                </div>
+                                                <div className="rounded-xl border border-black/10 p-3 text-sm dark:border-white/10">
+                                                    <div className="text-xs font-semibold uppercase tracking-wide opacity-60">Actions</div>
+                                                    <div className="mt-2 flex flex-wrap gap-2">
+                                                        <Button
+                                                            isQuiet
+                                                            data-testid="taskdrawer-about-modes"
+                                                            onPress={() =>
+                                                                openModal('Task mode', 'This will map to Shalimar component modes later.')
+                                                            }
+                                                        >
+                                                            About modes
+                                                        </Button>
+                                                        <Button
+                                                            isQuiet
+                                                            onPress={() =>
+                                                                openModal(
+                                                                    'Correctness',
+                                                                    'Decisions + artifacts are first-class outputs so agent/human loops remain auditable.',
+                                                                )
+                                                            }
+                                                        >
+                                                            Correctness
+                                                        </Button>
+                                                    </div>
+                                                </div>
                                             </div>
-                                            <div className="mt-1 opacity-70">
-                                                This drawer is the consistent “agent work surface”.
-                                            </div>
-                                        </div>
-                                        <div className="rounded-xl border border-black/10 p-3 text-sm dark:border-white/10">
-                                            <div className="text-xs font-semibold uppercase tracking-wide opacity-60">
-                                                Actions
-                                            </div>
-                                            <div className="mt-2 flex flex-wrap gap-2">
-                                                <Button
-                                                    isQuiet
-                                                    data-testid="taskdrawer-about-modes"
-                                                    onPress={() =>
-                                                        openModal('Task mode', 'This will map to Shalimar component modes later.')
-                                                    }
-                                                >
-                                                    About modes
-                                                </Button>
-                                                <Button isQuiet onPress={() => openModal('Audit trail', 'Activity is currently mock/polled. Later: server-driven events.')}>
-                                                    Audit
-                                                </Button>
-                                            </div>
-                                        </div>
-                                    </div>
+                                        </>
+                                    ) : null}
                                 </section>
 
-                                {mode === 'edit' && taskId ? (
+                                {tab === 'thread' && mode === 'edit' && taskId ? (
                                     <section className="space-y-3">
                                         <div className="flex items-end justify-between gap-3">
                                             <Heading level={4}>Thread</Heading>
@@ -159,11 +298,152 @@ export function TaskDrawer(props: {
                                             </div>
                                         </div>
                                     </section>
-                                ) : (
+                                ) : tab === 'thread' ? (
                                     <section className="rounded-xl border border-black/10 p-3 text-sm opacity-70 dark:border-white/10">
                                         Thread will be available after the task is created.
                                     </section>
-                                )}
+                                ) : null}
+
+                                {tab === 'decisions' && mode === 'edit' && taskId ? (
+                                    <section className="space-y-3">
+                                        <div className="flex items-end justify-between gap-3">
+                                            <Heading level={4}>Decisions</Heading>
+                                            <Button isQuiet onPress={() => openModal('Decisions', 'Decisions capture correctness: question → options → outcome → rationale.')}>
+                                                Why
+                                            </Button>
+                                        </div>
+
+                                        <div className="space-y-2">
+                                            {(decisions ?? []).map((d) => (
+                                                <div key={d.id} className="rounded-2xl border border-black/10 p-3 text-sm dark:border-white/10">
+                                                    <div className="text-xs opacity-60">{new Date(d.ts).toLocaleString()}</div>
+                                                    <div className="mt-1 font-semibold">{d.question}</div>
+                                                    <div className="mt-1 opacity-80">Outcome: {d.outcome}</div>
+                                                    {d.rationale ? <div className="mt-1 opacity-70">Rationale: {d.rationale}</div> : null}
+                                                </div>
+                                            ))}
+                                            {!decisions ? (
+                                                <div className="rounded-xl border border-black/10 p-3 text-sm opacity-70 dark:border-white/10">Loading…</div>
+                                            ) : null}
+                                        </div>
+
+                                        <div className="rounded-2xl border border-black/10 p-3 dark:border-white/10">
+                                            <TextField label="Question" value={decisionQuestion} onChange={setDecisionQuestion} />
+                                            <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                                                <Field label="Options (one per line)">
+                                                    <textarea
+                                                        className={textareaClass}
+                                                        value={decisionOptions}
+                                                        onChange={(e) => setDecisionOptions(e.target.value)}
+                                                    />
+                                                </Field>
+                                                <Field label="Outcome">
+                                                    <textarea
+                                                        className={textareaClass}
+                                                        value={decisionOutcome}
+                                                        onChange={(e) => setDecisionOutcome(e.target.value)}
+                                                    />
+                                                </Field>
+                                            </div>
+                                            <div className="mt-3">
+                                                <TextField label="Rationale (optional)" value={decisionRationale} onChange={setDecisionRationale} />
+                                            </div>
+                                            <div className="mt-3 flex flex-wrap gap-2">
+                                                <Button
+                                                    onPress={() =>
+                                                        void createDecision(
+                                                            taskId,
+                                                            decisionQuestion,
+                                                            decisionOptions,
+                                                            decisionOutcome,
+                                                            decisionRationale,
+                                                            setBusy,
+                                                            busy,
+                                                            clearDecisionDraft,
+                                                        )
+                                                    }
+                                                    isDisabled={busy}
+                                                >
+                                                    Record decision
+                                                </Button>
+                                            </div>
+                                        </div>
+                                    </section>
+                                ) : null}
+
+                                {tab === 'artifacts' && mode === 'edit' && taskId ? (
+                                    <section className="space-y-3">
+                                        <div className="flex items-end justify-between gap-3">
+                                            <Heading level={4}>Artifacts</Heading>
+                                            <Button isQuiet onPress={() => openModal('Artifacts', 'Artifacts are durable outputs created by agents/humans.')}>
+                                                Why
+                                            </Button>
+                                        </div>
+
+                                        <div className="space-y-2">
+                                            {(artifacts ?? []).map((a) => (
+                                                <div key={a.id} className="rounded-2xl border border-black/10 p-3 text-sm dark:border-white/10">
+                                                    <div className="flex items-baseline justify-between gap-2">
+                                                        <div className="font-semibold">{a.title}</div>
+                                                        <div className="text-xs opacity-60">{a.kind}</div>
+                                                    </div>
+                                                    <div className="mt-1 whitespace-pre-wrap opacity-80">{a.content}</div>
+                                                </div>
+                                            ))}
+                                            {!artifacts ? (
+                                                <div className="rounded-xl border border-black/10 p-3 text-sm opacity-70 dark:border-white/10">Loading…</div>
+                                            ) : null}
+                                        </div>
+
+                                        <div className="rounded-2xl border border-black/10 p-3 dark:border-white/10">
+                                            <div className="grid gap-3 sm:grid-cols-2">
+                                                <Field label="Kind">
+                                                    <select
+                                                        className={selectClass}
+                                                        value={artifactKind}
+                                                        onChange={(e) => setArtifactKind(e.target.value as ArtifactKind)}
+                                                    >
+                                                        <option value="notes">Notes</option>
+                                                        <option value="plan">Plan</option>
+                                                        <option value="draft">Draft</option>
+                                                        <option value="email">Email</option>
+                                                        <option value="call_summary">Call summary</option>
+                                                        <option value="decision_log">Decision log</option>
+                                                        <option value="other">Other</option>
+                                                    </select>
+                                                </Field>
+                                                <TextField label="Title" value={artifactTitle} onChange={setArtifactTitle} />
+                                            </div>
+                                            <div className="mt-3">
+                                                <Field label="Content">
+                                                    <textarea
+                                                        className={textareaClass}
+                                                        value={artifactContent}
+                                                        onChange={(e) => setArtifactContent(e.target.value)}
+                                                    />
+                                                </Field>
+                                            </div>
+                                            <div className="mt-3 flex flex-wrap gap-2">
+                                                <Button
+                                                    onPress={() =>
+                                                        void createArtifact(
+                                                            taskId,
+                                                            artifactKind,
+                                                            artifactTitle,
+                                                            artifactContent,
+                                                            setBusy,
+                                                            busy,
+                                                            clearArtifactDraft,
+                                                        )
+                                                    }
+                                                    isDisabled={busy}
+                                                >
+                                                    Add artifact
+                                                </Button>
+                                            </div>
+                                        </div>
+                                    </section>
+                                ) : null}
                             </div>
                         )}
                     </div>
@@ -176,7 +456,22 @@ export function TaskDrawer(props: {
                                     Cancel
                                 </Button>
                                 <Button
-                                    onPress={() => void save(mode, taskId, draftTitle, props.onClose, setBusy, busy)}
+                                    onPress={() =>
+                                        void save(
+                                            mode,
+                                            taskId,
+                                            draftTitle,
+                                            draftEpicId,
+                                            draftPriority,
+                                            draftAssigneeId,
+                                            draftDueDate,
+                                            draftEstimate,
+                                            draftCollaborators,
+                                            props.onClose,
+                                            setBusy,
+                                            busy,
+                                        )
+                                    }
                                     isDisabled={busy}
                                 >
                                     {mode === 'new' ? 'Create' : 'Save'}
@@ -189,30 +484,141 @@ export function TaskDrawer(props: {
         </div>
     )
 
+    function clearArtifactDraft() {
+        setArtifactTitle('')
+        setArtifactContent('')
+        setArtifactKind('notes')
+    }
+
+    function clearDecisionDraft() {
+        setDecisionQuestion('')
+        setDecisionOptions('')
+        setDecisionOutcome('')
+        setDecisionRationale('')
+    }
+
     async function save(
         mode: 'new' | 'edit',
         taskId: string | undefined,
         title: string,
+        epicId: string,
+        priority: TaskPriority,
+        assigneeId: string,
+        dueDate: string,
+        estimateMinutesRaw: string,
+        collaborators: Record<Id, boolean>,
         close: () => void,
         setBusy: (v: boolean) => void,
         busy: boolean,
     ) {
         const trimmed = title.trim()
         if (!trimmed || busy) return
+
+        const estimate = estimateMinutesRaw.trim() ? Number(estimateMinutesRaw.trim()) : undefined
+        if (estimateMinutesRaw.trim() && (!Number.isFinite(estimate) || estimate! < 0)) {
+            pushToast({ tone: 'danger', title: 'Invalid estimate', message: 'Use a non-negative number of minutes.' })
+            return
+        }
+
+        const collaboratorIds = Object.entries(collaborators)
+            .filter(([, v]) => v)
+            .map(([k]) => k)
+
         setBusy(true)
         try {
             if (mode === 'new') {
                 const created = await createTask(trimmed)
+                await updateTask(created.id, {
+                    epicId: epicId || undefined,
+                    priority,
+                    assigneeId: assigneeId || undefined,
+                    dueAt: dueDate ? new Date(`${dueDate}T00:00:00.000Z`).toISOString() : undefined,
+                    estimateMinutes: estimate,
+                    collaboratorIds,
+                })
                 pushToast({ tone: 'success', title: 'Task created', message: created.title })
                 pushNotification({ title: 'New task created', message: created.title, href: `/tasks?drawer=${created.id}` })
             } else if (taskId) {
-                await updateTask(taskId, { title: trimmed })
+                await updateTask(taskId, {
+                    title: trimmed,
+                    epicId: epicId || undefined,
+                    priority,
+                    assigneeId: assigneeId || undefined,
+                    dueAt: dueDate ? new Date(`${dueDate}T00:00:00.000Z`).toISOString() : undefined,
+                    estimateMinutes: estimate,
+                    collaboratorIds,
+                })
                 pushToast({ tone: 'success', title: 'Task updated' })
             }
             close()
         } finally {
             setBusy(false)
         }
+    }
+}
+
+const inputClass =
+    'w-full rounded-md border border-black/10 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500/40 dark:border-white/10 dark:bg-zinc-950'
+const selectClass = inputClass
+const textareaClass = `${inputClass} min-h-24`
+
+function Field(props: { label: string; children: React.ReactNode }) {
+    return (
+        <div>
+            <div className="mb-1 text-xs font-semibold uppercase tracking-wide opacity-60">{props.label}</div>
+            {props.children}
+        </div>
+    )
+}
+
+async function createArtifact(
+    taskId: string,
+    kind: ArtifactKind,
+    title: string,
+    content: string,
+    setBusy: (v: boolean) => void,
+    busy: boolean,
+    clear: () => void,
+) {
+    if (busy) return
+    const t = title.trim()
+    const c = content.trim()
+    if (!t || !c) return
+    setBusy(true)
+    try {
+        await addTaskArtifact(taskId, 'agent', kind, t, c)
+        pushToast({ tone: 'success', title: 'Artifact added', message: t })
+        clear()
+    } finally {
+        setBusy(false)
+    }
+}
+
+async function createDecision(
+    taskId: string,
+    question: string,
+    optionsRaw: string,
+    outcome: string,
+    rationale: string,
+    setBusy: (v: boolean) => void,
+    busy: boolean,
+    clear: () => void,
+) {
+    if (busy) return
+    const q = question.trim()
+    const opts = optionsRaw
+        .split('\n')
+        .map((x) => x.trim())
+        .filter(Boolean)
+    const o = outcome.trim()
+    if (!q || !o || opts.length === 0) return
+    setBusy(true)
+    try {
+        await addTaskDecision(taskId, 'human', q, opts, o, rationale.trim() ? rationale.trim() : undefined)
+        pushToast({ tone: 'success', title: 'Decision recorded', message: o })
+        clear()
+    } finally {
+        setBusy(false)
     }
 }
 

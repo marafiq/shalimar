@@ -259,6 +259,25 @@ export async function updateTaskStatus(id: Id, status: TaskStatus): Promise<Task
     return t
 }
 
+export async function moveTask(id: Id, status: TaskStatus, epicId?: Id): Promise<Task | undefined> {
+    await delay(180)
+    const t = tasks.find((x) => x.id === id)
+    if (!t) return undefined
+
+    const beforeStatus = t.status
+    const beforeEpic = t.epicId
+    t.status = status
+    t.epicId = epicId
+    t.updatedAt = nowIso()
+
+    const statusPart = beforeStatus === status ? null : `${beforeStatus.replaceAll('_', ' ')} → ${status.replaceAll('_', ' ')}`
+    const epicPart = beforeEpic === epicId ? null : `epic: ${beforeEpic ?? 'none'} → ${epicId ?? 'none'}`
+    const summary = [statusPart, epicPart].filter(Boolean).join(' • ')
+    pushActivity(`Moved task "${t.title}" (${summary || 'no-op'})`)
+
+    return t
+}
+
 export async function updateTask(
     id: Id,
     patch: Partial<

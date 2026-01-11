@@ -117,6 +117,7 @@ public class UiSnapshotsTests(IntegrationAppFixture fixture)
         {
             await page.GotoAsync($"{fixture.BaseUrl}/tasks?drawer=t_1");
             await page.WaitForLoadStateAsync(LoadState.NetworkIdle);
+            await page.GetByRole(AriaRole.Button, new() { Name = "Thread" }).ClickAsync();
             await page.GetByPlaceholder("Ask the agent, add context, or send an update…").FillAsync("Looks good — shipping this now.");
             await page.GetByRole(AriaRole.Button, new() { Name = "Send as Human" }).ClickAsync();
             await Assertions.Expect(page.GetByTestId("toast")).ToBeVisibleAsync();

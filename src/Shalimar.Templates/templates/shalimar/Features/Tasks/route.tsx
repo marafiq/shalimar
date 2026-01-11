@@ -2,7 +2,7 @@ import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
 import { Button, Heading, Text, TextField } from '@react-spectrum/s2'
 import { useMemo, useState } from 'react'
 import { useStore } from '@tanstack/react-store'
-import { crmStore, ensureAccounts, ensureTasks, ensureUsers, setTaskStatus } from '../Crm/store'
+import { crmStore, ensureAccounts, ensureEpics, ensureTasks, ensureUsers, setTaskStatus } from '../Crm/store'
 import type { TaskStatus } from '../Crm/types'
 import { PageSkeleton } from '../App/ui/Skeletons'
 import { IconPlus } from '../App/ui/icons'
@@ -11,12 +11,13 @@ import { TaskDrawer } from './_components/TaskDrawer'
 export const Route = createFileRoute('/tasks')({
     validateSearch: (search: Record<string, unknown>) => ({
         drawer: typeof search.drawer === 'string' ? search.drawer : undefined,
+        epicId: typeof search.epicId === 'string' ? search.epicId : undefined,
         skeleton: search.skeleton === '1' || search.skeleton === 'true',
         drawerSkeleton: search.drawerSkeleton === '1' || search.drawerSkeleton === 'true',
         threadSkeleton: search.threadSkeleton === '1' || search.threadSkeleton === 'true',
     }),
     loader: async () => {
-        await Promise.all([ensureUsers(), ensureAccounts(), ensureTasks()])
+        await Promise.all([ensureUsers(), ensureAccounts(), ensureEpics(), ensureTasks()])
         return null
     },
     pendingComponent: () => <PageSkeleton />,
@@ -26,7 +27,7 @@ export const Route = createFileRoute('/tasks')({
 function TasksRoute() {
     const { users, accounts, tasks } = useStore(crmStore)
     const navigate = useNavigate()
-    const { drawer, skeleton, drawerSkeleton, threadSkeleton } = Route.useSearch()
+    const { drawer, epicId, skeleton, drawerSkeleton, threadSkeleton } = Route.useSearch()
     const [query, setQuery] = useState('')
 
     if (skeleton) return <PageSkeleton />
@@ -112,6 +113,7 @@ function TasksRoute() {
             <TaskDrawer
                 open={typeof drawer === 'string' && drawer.length > 0}
                 drawer={drawer}
+                prefillEpicId={epicId}
                 forceSkeleton={drawerSkeleton}
                 forceThreadSkeleton={threadSkeleton}
                 onClose={() => navigate({ to: '/tasks', search: {} })}
