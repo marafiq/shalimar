@@ -1,9 +1,9 @@
 import { Button, Heading, TextField } from '@react-spectrum/s2'
 import { useState } from 'react'
-import { mutateCrmTasks, type ValidationErrors } from '@generated/store'
+import type { ValidationErrors } from '@generated/store'
 import type { CreateTaskRequest } from '@generated/types'
-import { CreateTaskRequestSchema } from '@generated/schemas'
-import { useGeneratedMutationForm } from '../../App/forms/useGeneratedMutationForm'
+import { useMutations } from '@generated/useMutations'
+import { useMutationSubmit } from '../../App/forms/useMutationSubmit'
 import { Field, selectClass } from './tasksUi'
 import { pushToast } from '../../App/ui/store'
 
@@ -14,10 +14,8 @@ export function CreateTaskPane(props: { open: boolean; epicId?: string; onClose:
     const [tags, setTags] = useState('')
     const [estimateMinutes, setEstimateMinutes] = useState('')
 
-    const form = useGeneratedMutationForm<CreateTaskRequest, any>({
-        mutate: mutateCrmTasks as any,
-        schema: CreateTaskRequestSchema,
-    })
+    const { CrmTasks } = useMutations()
+    const form = useMutationSubmit<CreateTaskRequest, any>(CrmTasks as any)
 
     if (!props.open) return null
 

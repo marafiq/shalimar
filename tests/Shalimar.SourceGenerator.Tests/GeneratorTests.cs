@@ -525,6 +525,74 @@ public sealed class CreateTaskRequestValidator : FluentValidation.AbstractValida
     }
 
     [Fact]
+    public void Generator_Emits_UseMutations_Specs()
+    {
+        var source = """
+using System;
+
+namespace Shalimar
+{
+    public static class RouteBuilderExtensions
+    {
+        public static RouteHandlerBuilder AsMutation<TReq, TRes>(this RouteHandlerBuilder builder) => builder;
+    }
+}
+
+public sealed class RouteHandlerBuilder
+{
+    public RouteHandlerBuilder WithName(string name) => this;
+}
+
+public sealed class WebApplication
+{
+    public RouteHandlerBuilder MapPost(string pattern, Delegate handler) => new();
+}
+
+namespace TestApp;
+
+public static class App
+{
+    public static void Configure(WebApplication app)
+    {
+        app.MapPost("/crm/tasks", (CreateTaskRequest req) => new TaskDto(req.Title))
+            .AsMutation<CreateTaskRequest, TaskDto>();
+    }
+}
+
+public sealed record CreateTaskRequest(string Title);
+public sealed record TaskDto(string Title);
+""";
+
+        var syntaxTree = CSharpSyntaxTree.ParseText(source, CSharpParseOptions.Default);
+        var references = new[]
+        {
+            MetadataReference.CreateFromFile(typeof(object).Assembly.Location),
+            MetadataReference.CreateFromFile(typeof(Enumerable).Assembly.Location),
+        };
+
+        var compilation = CSharpCompilation.Create(
+            assemblyName: "TestApp",
+            syntaxTrees: new[] { syntaxTree },
+            references: references,
+            options: new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary, nullableContextOptions: NullableContextOptions.Enable));
+
+        var generator = new ShalimarGenerator();
+        GeneratorDriver driver = CSharpGeneratorDriver.Create(generator);
+        driver = driver.RunGeneratorsAndUpdateCompilation(compilation, out var outputCompilation, out var diagnostics);
+
+        Assert.Empty(diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error));
+
+        var generated = outputCompilation.SyntaxTrees
+            .Where(t => t != syntaxTree)
+            .Select(t => t.ToString())
+            .ToImmutableArray();
+
+        var useMutations = Assert.Single(generated, t => t.Contains("SHALIMAR_TS: shalimar-use-mutations.g.ts", StringComparison.Ordinal));
+        Assert.Contains("export function useMutations()", useMutations, StringComparison.Ordinal);
+        Assert.Contains("mutationSpecs", useMutations, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void Generator_Emits_SseRefs_And_Sse_Generic_Type()
     {
         var source = """
