@@ -1,7 +1,11 @@
 import { Button, Heading, Text } from '@react-spectrum/s2'
-import { useDeferred, useBehaviors } from '@shalimar/runtime'
+import { useBehaviors } from '@shalimar/runtime'
 import { Suspense } from 'react'
-import { useWorkbenchProps, useWorkbenchPropsAgentPanelInsightsHref, useWorkbenchPropsSummaryHref } from '@generated/store'
+import {
+    useWorkbenchProps,
+    useWorkbenchPropsAgentPanelInsightsDeferred,
+    useWorkbenchPropsSummaryDeferred,
+} from '@generated/store'
 
 function SummaryCard(props: { title: string; value: string; hint?: string }) {
     return (
@@ -13,8 +17,8 @@ function SummaryCard(props: { title: string; value: string; hint?: string }) {
     )
 }
 
-function Summary(props: { href: string }) {
-    const summary = useDeferred<{ openTasks: number; overdueTasks: number; activeAgents: number }>({ href: props.href })
+function Summary() {
+    const summary = useWorkbenchPropsSummaryDeferred<{ openTasks: number; overdueTasks: number; activeAgents: number }>()
     return (
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
             <SummaryCard title="Open tasks" value={String(summary.openTasks)} />
@@ -24,8 +28,8 @@ function Summary(props: { href: string }) {
     )
 }
 
-function AgentInsights(props: { href: string }) {
-    const insights = useDeferred<{ headline: string; suggestions: string[] }>({ href: props.href })
+function AgentInsights() {
+    const insights = useWorkbenchPropsAgentPanelInsightsDeferred<{ headline: string; suggestions: string[] }>()
     return (
         <div className="rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-800 dark:bg-zinc-950/40">
             <div className="flex items-start justify-between gap-3">
@@ -51,8 +55,6 @@ function AgentInsights(props: { href: string }) {
 
 export default function WorkbenchPage() {
     const props = useWorkbenchProps()
-    const summaryHref = useWorkbenchPropsSummaryHref()
-    const insightsHref = useWorkbenchPropsAgentPanelInsightsHref()
 
     // Server-owned behavior plan: prefetch deferred leaves for snappy UX after hydration.
     useBehaviors(props.agentPanel.behaviors)
@@ -77,7 +79,7 @@ export default function WorkbenchPage() {
                     </div>
                 }
             >
-                <Summary href={summaryHref} />
+                <Summary />
             </Suspense>
 
             <Suspense
@@ -92,7 +94,7 @@ export default function WorkbenchPage() {
                     </div>
                 }
             >
-                <AgentInsights href={insightsHref} />
+                <AgentInsights />
             </Suspense>
         </div>
     )
