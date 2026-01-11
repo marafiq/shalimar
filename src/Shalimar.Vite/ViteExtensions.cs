@@ -33,7 +33,7 @@ public static class ViteExtensions
     {
         if (env.IsDevelopment())
         {
-            var options = app.ApplicationServices.GetService<ViteOptions>() ?? new ViteOptions();
+            var options = app.ApplicationServices.GetRequiredService<ViteOptions>();
             app.UseMiddleware<ViteDevServerMiddleware>(options);
         }
         return app;
