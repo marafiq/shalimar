@@ -59,6 +59,7 @@ public class FeatureCoverageTests(SandboxAppFixture fixture)
                 ("/tasks/board", "Board"),
                 ("/v2/workbench", "V2 Workbench"),
                 ("/v2/tasks", "V2 Tasks"),
+                ("/v2/live", "V2 Live"),
                 ("/accounts", "Accounts"),
                 ("/accounts/a_2", "Account"),
                 ("/settings", "Settings"),
@@ -214,6 +215,53 @@ public class FeatureCoverageTests(SandboxAppFixture fixture)
             await Assertions.Expect(abort).ToBeEnabledAsync(new() { Timeout = 5000 });
             await abort.ClickAsync();
             await Assertions.Expect(page.GetByTestId("streamed-status")).ToContainTextAsync("aborted", new() { Timeout = 15000 });
+        }
+        catch (Exception ex)
+        {
+            await diag.CaptureFailureAsync(page, ex);
+            throw;
+        }
+        finally
+        {
+            await diag.FlushAsync();
+            await context.DisposeAsync();
+        }
+    }
+
+    [Fact]
+    public async Task V2_Live_Does_Not_AutoStart_Stream_Or_Sse()
+    {
+        var (context, page, diag) = await fixture.NewPageAsync(nameof(V2_Live_Does_Not_AutoStart_Stream_Or_Sse));
+        try
+        {
+            await fixture.ResetCrmAsync();
+
+            var auditRequests = 0;
+            var sseRequests = 0;
+            await page.RouteAsync("**/v2/live/audit**", async route =>
+            {
+                auditRequests++;
+                await route.ContinueAsync();
+            });
+            await page.RouteAsync("**/v2/live/notifications**", async route =>
+            {
+                sseRequests++;
+                await route.ContinueAsync();
+            });
+
+            await page.GotoAsync(fixture.BaseUrl + "/v2/live");
+            await page.WaitForLoadStateAsync(LoadState.NetworkIdle);
+
+            Assert.Equal(0, auditRequests);
+            Assert.Equal(0, sseRequests);
+
+            await page.GetByTestId("v2live-stream-start").ClickAsync();
+            await Assertions.Expect(page.GetByTestId("v2live-stream-status")).ToContainTextAsync("streaming", new() { Timeout = 5000 });
+            Assert.True(auditRequests > 0);
+
+            await page.GetByTestId("v2live-sse-start").ClickAsync();
+            await Assertions.Expect(page.GetByTestId("v2live-sse-status")).ToContainTextAsync("open", new() { Timeout = 5000 });
+            Assert.True(sseRequests > 0);
         }
         catch (Exception ex)
         {

@@ -7,6 +7,7 @@ using ShalimarApp.Features.Tasks;
 using ShalimarApp.Features.Tasks.Board;
 using ShalimarApp.Features.V2.Workbench;
 using ShalimarApp.Features.V2.Tasks;
+using ShalimarApp.Features.V2.Live;
 using FluentValidation;
 using Shalimar;
 using Shalimar.Vite;
@@ -270,6 +271,116 @@ app.MapGet("/v2/tasks/grid", (HttpRequest req, CrmRepository repo) =>
     .ForComponent<V2TasksProps>()
     .ForNode<V2TasksProps>(p => p.Grid)
     .AsDeferred<CrmTasksGridDto>();
+
+app.MapGet("/v2/live", async (HttpContext http, CrmRepository repo) =>
+{
+    var realtime = new Component<LiveRealtimePanelProps>(
+        new LiveRealtimePanelProps(
+            Audit: Shalimar.Generated.Components.V2LiveProps.Stream.V2LiveAudit(),
+            Notifications: Shalimar.Generated.Components.V2LiveProps.Sse.V2LiveNotifications()));
+
+    var props = new V2LiveProps(
+        Title: "V2 Live",
+        Summary: Shalimar.Generated.Components.V2LiveProps.Deferred.V2LiveSummary(),
+        Timeline: Shalimar.Generated.Components.V2LiveProps.Lazy.V2LiveTimeline(),
+        RealtimePanel: realtime);
+
+    return ShalimarTypedResults.Component(MakeContext(app), props, "Shalimar App");
+}).ForTsxFile("Features/V2/Live/LivePage.tsx").AsComponent<V2LiveProps>();
+
+app.MapGet("/v2/live/summary", (CrmRepository repo) =>
+{
+    var snapshot = repo.Snapshot();
+    var open = snapshot.Tasks.Count(t => t.Status != "done");
+    var overdue = snapshot.Tasks.Count(t => t.DueAt is not null && t.DueAt.Value < DateTimeOffset.UtcNow && t.Status != "done");
+    var unread = snapshot.Activity.Count(a => a.Kind == "system"); // mock "unread"
+    return new LiveSummaryDto(OpenTasks: open, OverdueTasks: overdue, ActiveAgents: 3, UnreadNotifications: unread);
+})
+    .ForComponent<V2LiveProps>()
+    .ForNode<V2LiveProps>(p => p.Summary)
+    .AsDeferred<LiveSummaryDto>();
+
+app.MapGet("/v2/live/timeline", (CrmRepository repo) =>
+{
+    var items = repo.Activity()
+        .Take(12)
+        .Select(a => new LiveTimelineItemDto(
+            Id: a.Id,
+            Ts: a.Ts,
+            Kind: a.Kind,
+            Summary: a.Summary))
+        .ToList();
+    return new LiveTimelineDto(items);
+})
+    .ForComponent<V2LiveProps>()
+    .ForNode<V2LiveProps>(p => p.Timeline)
+    .AsLazy<LiveTimelineDto>();
+
+app.MapGet("/v2/live/audit", async (HttpContext http, CancellationToken ct) =>
+{
+    http.Response.Headers.CacheControl = "no-cache";
+    http.Response.Headers.ContentType = "application/x-ndjson";
+
+    var isTesting = !string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("SHALIMAR_TESTING"));
+    var count = isTesting ? 40 : 20;
+    var delayMs = isTesting ? 60 : 30;
+
+    for (var i = 0; i < count && !ct.IsCancellationRequested; i++)
+    {
+        var evt = new LiveAuditEventDto(
+            Seq: i + 1,
+            Ts: DateTimeOffset.UtcNow,
+            Message: $"audit_row_{i + 1}");
+        await WriteNdjsonAsync(http, evt, ct);
+        await Task.Delay(delayMs, ct);
+    }
+
+    return Results.Empty;
+})
+    .ForComponent<V2LiveProps>()
+    .ForNode<V2LiveProps>(p => p.RealtimePanel.Props.Audit)
+    .AsStream<LiveAuditEventDto>();
+
+app.MapGet("/v2/live/notifications", async (HttpContext http, CancellationToken ct) =>
+{
+    http.Response.Headers.CacheControl = "no-cache";
+    http.Response.Headers.Connection = "keep-alive";
+    http.Response.Headers.ContentType = "text/event-stream";
+
+    await WriteSseAsync(
+        http,
+        new LiveNotificationEventDto(
+            Id: "n_boot",
+            Ts: DateTimeOffset.UtcNow,
+            Title: "SSE connected",
+            Body: "Live notifications stream opened."),
+        ct);
+
+    for (var i = 0; i < 2 && !ct.IsCancellationRequested; i++)
+    {
+        await Task.Delay(250, ct);
+        await WriteSseAsync(
+            http,
+            new LiveNotificationEventDto(
+                Id: $"n_tick_{i + 1}",
+                Ts: DateTimeOffset.UtcNow,
+                Title: "Tick",
+                Body: $"notification tick {i + 1}"),
+            ct);
+    }
+
+    while (!ct.IsCancellationRequested)
+    {
+        await Task.Delay(2000, ct);
+        await http.Response.WriteAsync($": keep-alive {DateTimeOffset.UtcNow:O}\n\n", ct);
+        await http.Response.Body.FlushAsync(ct);
+    }
+
+    return Results.Empty;
+})
+    .ForComponent<V2LiveProps>()
+    .ForNode<V2LiveProps>(p => p.RealtimePanel.Props.Notifications)
+    .AsSse<LiveNotificationEventDto>();
 
 static async Task WriteSseAsync<T>(HttpContext http, T data, CancellationToken ct)
 {

@@ -8,6 +8,12 @@ namespace Shalimar.IntegrationPlaywrightTests;
 public class UiSnapshotsTests(SandboxAppFixture fixture)
 {
     [Fact]
+    public async Task V2_Live()
+    {
+        await SnapshotRouteAsync(nameof(V2_Live), "/v2/live", "v2-live.png");
+    }
+
+    [Fact]
     public async Task V2_Workbench()
     {
         await SnapshotRouteAsync(nameof(V2_Workbench), "/v2/workbench", "v2-workbench.png");
@@ -248,6 +254,37 @@ public class UiSnapshotsTests(SandboxAppFixture fixture)
             await Assertions.Expect(page.GetByTestId("sse-status")).ToContainTextAsync("open");
             await Assertions.Expect(page.GetByTestId("sse-last")).ToContainTextAsync("Stream tick");
             await SnapshotAssertions.AssertMatchesAsync(page, diag, nameof(Dashboard_Sse_Started), "dashboard-sse.png");
+        }
+        catch (Exception ex)
+        {
+            await diag.CaptureFailureAsync(page, ex);
+            throw;
+        }
+        finally
+        {
+            await diag.FlushAsync();
+            await context.DisposeAsync();
+        }
+    }
+
+    [Fact]
+    public async Task V2_Live_Realtime_Started()
+    {
+        var (context, page, diag) = await fixture.NewPageAsync(nameof(V2_Live_Realtime_Started));
+        try
+        {
+            await fixture.ResetCrmAsync();
+            await page.GotoAsync($"{fixture.BaseUrl}/v2/live");
+            await page.WaitForLoadStateAsync(LoadState.NetworkIdle);
+
+            await page.GetByTestId("v2live-stream-start").ClickAsync();
+            await Assertions.Expect(page.GetByTestId("v2live-stream-status")).ToContainTextAsync("streaming", new() { Timeout = 5000 });
+
+            await page.GetByTestId("v2live-sse-start").ClickAsync();
+            await Assertions.Expect(page.GetByTestId("v2live-sse-status")).ToContainTextAsync("open", new() { Timeout = 5000 });
+            await Assertions.Expect(page.GetByTestId("v2live-sse-last")).ToContainTextAsync("tick", new() { Timeout = 5000 });
+
+            await SnapshotAssertions.AssertMatchesAsync(page, diag, nameof(V2_Live_Realtime_Started), "v2-live-realtime.png");
         }
         catch (Exception ex)
         {

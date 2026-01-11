@@ -1929,7 +1929,7 @@ public class ShalimarGenerator : IIncrementalGenerator
             tsSb.AppendLine($"export function {fn}(): {leaf.TsValueType} {{");
             tsSb.AppendLine($"    const props = getV2Props(v2Keys.{leaf.RootTypeName})");
             tsSb.AppendLine("    if (!props) throw new Error('Missing v2 props (store not initialized)')");
-            tsSb.AppendLine($"    const href = (props as any).{leaf.TsAccessPathToHandle}.href as string");
+                tsSb.AppendLine($"    const href = props.{leaf.TsAccessPathToHandle}.href");
             tsSb.AppendLine($"    return useDeferred<{leaf.TsValueType}>({{ href }})");
             tsSb.AppendLine("}");
             tsSb.AppendLine();
@@ -1941,7 +1941,7 @@ public class ShalimarGenerator : IIncrementalGenerator
             tsSb.AppendLine($"export function {fn}() {{");
             tsSb.AppendLine($"    const props = getV2Props(v2Keys.{leaf.RootTypeName})");
             tsSb.AppendLine("    if (!props) throw new Error('Missing v2 props (store not initialized)')");
-            tsSb.AppendLine($"    const href = (props as any).{leaf.TsAccessPathToHandle}.href as string");
+                tsSb.AppendLine($"    const href = props.{leaf.TsAccessPathToHandle}.href");
             tsSb.AppendLine($"    return useLazy<{leaf.TsValueType}>({{ href }})");
             tsSb.AppendLine("}");
             tsSb.AppendLine();
@@ -1953,7 +1953,7 @@ public class ShalimarGenerator : IIncrementalGenerator
             tsSb.AppendLine($"export function {fn}(opts?: {{ maxItems?: number }}) {{");
             tsSb.AppendLine($"    const props = getV2Props(v2Keys.{leaf.RootTypeName})");
             tsSb.AppendLine("    if (!props) throw new Error('Missing v2 props (store not initialized)')");
-            tsSb.AppendLine($"    const href = (props as any).{leaf.TsAccessPathToHandle}.href as string");
+                tsSb.AppendLine($"    const href = props.{leaf.TsAccessPathToHandle}.href");
             tsSb.AppendLine($"    return useStream<{leaf.TsValueType}>({{ href }}, opts)");
             tsSb.AppendLine("}");
             tsSb.AppendLine();
@@ -1965,7 +1965,7 @@ public class ShalimarGenerator : IIncrementalGenerator
             tsSb.AppendLine($"export function {fn}(opts?: {{ maxEvents?: number }}) {{");
             tsSb.AppendLine($"    const props = getV2Props(v2Keys.{leaf.RootTypeName})");
             tsSb.AppendLine("    if (!props) throw new Error('Missing v2 props (store not initialized)')");
-            tsSb.AppendLine($"    const href = (props as any).{leaf.TsAccessPathToHandle}.href as string");
+                tsSb.AppendLine($"    const href = props.{leaf.TsAccessPathToHandle}.href");
             tsSb.AppendLine($"    return useSse<{leaf.TsValueType}>({{ href }}, opts)");
             tsSb.AppendLine("}");
             tsSb.AppendLine();
@@ -1978,7 +1978,7 @@ public class ShalimarGenerator : IIncrementalGenerator
             tsSb.AppendLine($"export function {fn}() {{");
             tsSb.AppendLine($"    const props = getV2Props(v2Keys.{leaf.RootTypeName})");
             tsSb.AppendLine("    if (!props) return");
-            tsSb.AppendLine($"    const href = (props as any).{leaf.TsAccessPathToHandle}.href as string");
+            tsSb.AppendLine($"    const href = props.{leaf.TsAccessPathToHandle}.href");
             tsSb.AppendLine($"    {(leaf.Mode switch { ModeKind.Deferred => "invalidateDeferredByPrefix", ModeKind.Lazy => "invalidateLazyByPrefix", ModeKind.Stream => "invalidateStreamedByPrefix", ModeKind.Sse => "invalidateSseByPrefix", _ => "invalidateDeferredByPrefix" })}(href)");
             tsSb.AppendLine("}");
             tsSb.AppendLine();

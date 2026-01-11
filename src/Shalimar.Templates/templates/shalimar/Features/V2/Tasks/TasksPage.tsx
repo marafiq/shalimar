@@ -4,7 +4,7 @@ import { useNavigate, useRouterState } from '@tanstack/react-router'
 import { pushToast } from '../../App/ui/store'
 import { useMutationSubmit } from '../../App/forms/useMutationSubmit'
 import { useMutations } from '@generated/useMutations'
-import { invalidateV2TasksPropsGrid, useV2TasksProps, useV2TasksPropsGridDeferred } from '@generated/store'
+import { invalidateV2TasksPropsGrid, mergeV2Ui, useV2TasksProps, useV2TasksPropsGridDeferred, useV2Ui, v2Keys } from '@generated/store'
 import { paths } from '@generated/paths'
 
 function GridSkeleton() {
@@ -129,16 +129,23 @@ export default function V2TasksPage() {
     const search = useRouterState({ select: (s) => s.location.search })
     const sp = useMemo(() => new URLSearchParams(search), [search])
 
-    const [createOpen, setCreateOpen] = useState(sp.get('create') === '1')
-    const [q, setQ] = useState(sp.get('q') ?? '')
-    const [status, setStatus] = useState(sp.get('status') ?? '')
-    const [priority, setPriority] = useState(sp.get('priority') ?? '')
+    type Ui = { createOpen?: boolean; q?: string; status?: string; priority?: string }
+    const ui = useV2Ui(v2Keys.V2TasksProps) as Ui
+
+    const createOpen = ui.createOpen ?? sp.get('create') === '1'
+    const q = ui.q ?? sp.get('q') ?? ''
+    const status = ui.status ?? sp.get('status') ?? ''
+    const priority = ui.priority ?? sp.get('priority') ?? ''
 
     useEffect(() => {
-        setCreateOpen(sp.get('create') === '1')
-        setQ(sp.get('q') ?? '')
-        setStatus(sp.get('status') ?? '')
-        setPriority(sp.get('priority') ?? '')
+        // Keep UI state in the v2 store (survives props refresh/invalidation),
+        // while still treating the URL as the refreshable server contract.
+        mergeV2Ui(v2Keys.V2TasksProps, {
+            createOpen: sp.get('create') === '1',
+            q: sp.get('q') ?? '',
+            status: sp.get('status') ?? '',
+            priority: sp.get('priority') ?? '',
+        })
     }, [sp])
 
     const setCreateParam = (open: boolean) => {
@@ -188,9 +195,9 @@ export default function V2TasksPage() {
                     <div className="text-sm font-semibold">Filters</div>
                     <div className="mt-3 text-xs text-zinc-500 dark:text-zinc-400">This is URL-driven for server-first routing.</div>
                     <div className="mt-4 space-y-3">
-                        <TextField label="Search" value={q} onChange={(v) => setQ(v)} />
-                        <TextField label="Status" value={status} onChange={(v) => setStatus(v)} />
-                        <TextField label="Priority" value={priority} onChange={(v) => setPriority(v)} />
+                        <TextField label="Search" value={q} onChange={(v) => mergeV2Ui(v2Keys.V2TasksProps, { q: v })} />
+                        <TextField label="Status" value={status} onChange={(v) => mergeV2Ui(v2Keys.V2TasksProps, { status: v })} />
+                        <TextField label="Priority" value={priority} onChange={(v) => mergeV2Ui(v2Keys.V2TasksProps, { priority: v })} />
                         <div className="pt-1">
                             <Button variant="secondary" onPress={onApplyFilters} data-testid="v2-filters-apply">
                                 Apply
