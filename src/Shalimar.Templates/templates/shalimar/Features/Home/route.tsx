@@ -1,9 +1,11 @@
 import { createFileRoute, Link } from '@tanstack/react-router'
 import { Button, Card, CardPreview, Heading, Text, TextField } from '@react-spectrum/s2'
-import { useEffect, useMemo, useState } from 'react'
+import { Suspense, useEffect, useMemo, useState } from 'react'
 import { useStore } from '@tanstack/react-store'
 import { crmStore, ensureAccounts, ensureTasks, ensureUsers, refreshActivity } from '../Crm/store'
 import { PageSkeleton } from '../App/ui/Skeletons'
+import { useDeferred } from '@shalimar/runtime'
+import type { CrmInsightsDto, DashboardProps } from '@generated/shalimar-types.g'
 
 export const Route = createFileRoute('/')({
     validateSearch: (search: Record<string, unknown>) => ({
@@ -39,7 +41,7 @@ function HomeRoute() {
     const open = tasks.filter((t) => t.status !== 'done')
     const filtered = open.filter((t) => t.title.toLowerCase().includes(query.trim().toLowerCase()))
 
-    const props = (window.__SHALIMAR_PROPS__ ?? { message: 'Welcome to Shalimar' }) as { message: string }
+    const props = (window.__SHALIMAR_PROPS__ ?? { message: 'Welcome to Shalimar' }) as DashboardProps
 
     return (
         <div className="grid gap-6 lg:grid-cols-12">
@@ -114,6 +116,25 @@ function HomeRoute() {
                         </div>
                     </CardPreview>
                 </Card>
+
+                <div className="mt-4">
+                    <Card>
+                        <CardPreview>
+                            <div className="p-5">
+                                <div className="flex items-end justify-between gap-3">
+                                    <Heading level={3}>Agent insights</Heading>
+                                    <div className="text-xs text-zinc-500 dark:text-zinc-400">Deferred</div>
+                                </div>
+
+                                <div className="mt-3">
+                                    <Suspense fallback={<InsightsSkeleton />}>
+                                        <InsightsLoaded href={props.insights.href} />
+                                    </Suspense>
+                                </div>
+                            </div>
+                        </CardPreview>
+                    </Card>
+                </div>
             </aside>
         </div>
     )
@@ -134,6 +155,54 @@ function KpiCard(props: { title: string; value: number; tone?: 'neutral' | 'dang
                 </div>
             </CardPreview>
         </Card>
+    )
+}
+
+function InsightsLoaded(props: { href: string }) {
+    const data = useDeferred<CrmInsightsDto>({ href: props.href })
+    return (
+        <div className="space-y-3 text-sm">
+            <div className="rounded-xl border border-zinc-200 bg-white p-3 shadow-sm dark:border-zinc-800 dark:bg-zinc-950/40">
+                <div className="text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">Summary</div>
+                <div className="mt-1">{data.summary}</div>
+            </div>
+            <div className="grid gap-3">
+                <div className="rounded-xl border border-zinc-200 bg-white p-3 shadow-sm dark:border-zinc-800 dark:bg-zinc-950/40">
+                    <div className="text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">Risks</div>
+                    <ul className="mt-2 list-disc space-y-1 pl-5">
+                        {data.risks.map((r) => (
+                            <li key={r}>{r}</li>
+                        ))}
+                    </ul>
+                </div>
+                <div className="rounded-xl border border-zinc-200 bg-white p-3 shadow-sm dark:border-zinc-800 dark:bg-zinc-950/40">
+                    <div className="text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">Next actions</div>
+                    <ul className="mt-2 list-disc space-y-1 pl-5">
+                        {data.nextActions.map((n) => (
+                            <li key={n}>{n}</li>
+                        ))}
+                    </ul>
+                </div>
+            </div>
+        </div>
+    )
+}
+
+function InsightsSkeleton() {
+    return (
+        <div className="space-y-3">
+            <div className="rounded-xl border border-zinc-200 bg-white p-3 shadow-sm dark:border-zinc-800 dark:bg-zinc-950/40">
+                <div className="h-3 w-24 rounded bg-zinc-200 dark:bg-zinc-800" />
+                <div className="mt-2 h-4 w-[90%] rounded bg-zinc-200 dark:bg-zinc-800" />
+                <div className="mt-2 h-4 w-[70%] rounded bg-zinc-200 dark:bg-zinc-800" />
+            </div>
+            <div className="rounded-xl border border-zinc-200 bg-white p-3 shadow-sm dark:border-zinc-800 dark:bg-zinc-950/40">
+                <div className="h-3 w-16 rounded bg-zinc-200 dark:bg-zinc-800" />
+                <div className="mt-2 h-3 w-[85%] rounded bg-zinc-200 dark:bg-zinc-800" />
+                <div className="mt-2 h-3 w-[72%] rounded bg-zinc-200 dark:bg-zinc-800" />
+                <div className="mt-2 h-3 w-[64%] rounded bg-zinc-200 dark:bg-zinc-800" />
+            </div>
+        </div>
     )
 }
 

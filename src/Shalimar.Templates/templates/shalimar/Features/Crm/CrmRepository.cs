@@ -47,6 +47,35 @@ public sealed class CrmRepository
         }
     }
 
+    public CrmInsightsDto Insights()
+    {
+        lock (_gate)
+        {
+            var open = _tasks.Count(t => t.Status != "done");
+            var blocked = _tasks.Count(t => t.Status == "blocked");
+            var overdue = _tasks.Count(t => t.DueAt.HasValue && t.DueAt.Value < DateTimeOffset.UtcNow && t.Status != "done");
+
+            var summary = blocked > 0
+                ? $"Focus: unblock {blocked} task(s). {open} open across {_epics.Count} epic(s)."
+                : $"{open} open task(s) across {_epics.Count} epic(s). Keep WIP low.";
+
+            var risks = new List<string>();
+            if (overdue > 0) risks.Add($"{overdue} overdue task(s) — review due dates and re-scope.");
+            if (blocked > 0) risks.Add("Blocked work is accumulating — assign owners for blockers.");
+            if (open > 8) risks.Add("Open task count is high — consider splitting epics or pausing lower priority work.");
+            if (risks.Count == 0) risks.Add("No critical risks detected.");
+
+            var next = new List<string>
+            {
+                "Confirm epic owners and collaborators for the next 48 hours.",
+                "Move one task to “done” before starting a new one.",
+                "Capture decisions + artifacts for auditability."
+            };
+
+            return new CrmInsightsDto(summary, risks, next);
+        }
+    }
+
     public TaskDto? GetTask(string taskId) => _tasks.FirstOrDefault(t => t.Id == taskId);
 
     public EpicDto? GetEpic(string epicId) => _epics.FirstOrDefault(e => e.Id == epicId);

@@ -26,8 +26,16 @@ public class ShalimarGenerator : IIncrementalGenerator
             .Where(static info => info is not null)
             .Collect();
 
+        // Find all invocations of AsDeferred<T>()
+        var deferredCalls = context.SyntaxProvider
+            .CreateSyntaxProvider(
+                predicate: static (node, _) => IsAsDeferredCall(node),
+                transform: static (ctx, _) => GetDeferredInfo(ctx))
+            .Where(static info => info is not null)
+            .Collect();
+
         // Combine with compilation
-        var compilationAndComponents = context.CompilationProvider.Combine(componentCalls);
+        var compilationAndComponents = context.CompilationProvider.Combine(componentCalls).Combine(deferredCalls);
 
         // Generate output
         context.RegisterSourceOutput(compilationAndComponents, Execute);
@@ -38,6 +46,13 @@ public class ShalimarGenerator : IIncrementalGenerator
         return node is InvocationExpressionSyntax invocation &&
                invocation.Expression is MemberAccessExpressionSyntax memberAccess &&
                memberAccess.Name.Identifier.Text == "AsComponent";
+    }
+
+    private static bool IsAsDeferredCall(SyntaxNode node)
+    {
+        return node is InvocationExpressionSyntax invocation &&
+               invocation.Expression is MemberAccessExpressionSyntax memberAccess &&
+               memberAccess.Name.Identifier.Text == "AsDeferred";
     }
 
     private static ComponentInfo? GetComponentInfo(GeneratorSyntaxContext context)
@@ -64,6 +79,26 @@ public class ShalimarGenerator : IIncrementalGenerator
             typeSymbol.ContainingNamespace?.ToDisplayString() ?? "",
             routePath ?? "/",
             GetProperties(typeSymbol));
+    }
+
+    private static DeferredInfo? GetDeferredInfo(GeneratorSyntaxContext context)
+    {
+        var invocation = (InvocationExpressionSyntax)context.Node;
+        var memberAccess = (MemberAccessExpressionSyntax)invocation.Expression;
+
+        if (memberAccess.Name is not GenericNameSyntax genericName ||
+            genericName.TypeArgumentList.Arguments.Count != 1)
+            return null;
+
+        var typeArg = genericName.TypeArgumentList.Arguments[0];
+        var typeSymbol = context.SemanticModel.GetTypeInfo(typeArg).Type;
+        if (typeSymbol is null) return null;
+
+        var routePath = FindRoutePath(invocation);
+        if (string.IsNullOrWhiteSpace(routePath)) return null;
+
+        var method = MakeRefMethodName(routePath!);
+        return new DeferredInfo(typeSymbol, routePath!, method);
     }
 
     private static string? FindRoutePath(InvocationExpressionSyntax invocation)
@@ -100,6 +135,26 @@ public class ShalimarGenerator : IIncrementalGenerator
         return null;
     }
 
+    private static string MakeRefMethodName(string routePath)
+    {
+        var normalized = routePath == "/" ? "/" : "/" + routePath.Trim('/');
+        if (normalized == "/") return "Home";
+
+        var segments = normalized.Trim('/').Split(new[] { '/' }, StringSplitOptions.RemoveEmptyEntries);
+        var sb = new StringBuilder();
+        foreach (var seg in segments)
+        {
+            if (seg.StartsWith("{") && seg.EndsWith("}") && seg.Length > 2)
+            {
+                sb.Append("By");
+                sb.Append(ToPascalCase(seg.Substring(1, seg.Length - 2)));
+                continue;
+            }
+            sb.Append(ToPascalCase(seg));
+        }
+        return sb.Length == 0 ? "Deferred" : sb.ToString();
+    }
+
     private static ImmutableArray<PropertyInfo> GetProperties(ITypeSymbol type)
     {
         var properties = ImmutableArray.CreateBuilder<PropertyInfo>();
@@ -115,18 +170,28 @@ public class ShalimarGenerator : IIncrementalGenerator
 
     private static void Execute(
         SourceProductionContext context,
-        (Compilation Compilation, ImmutableArray<ComponentInfo?> Components) source)
+        ((Compilation Compilation, ImmutableArray<ComponentInfo?> Components) Left, ImmutableArray<DeferredInfo?> Deferred) source)
     {
-        var components = source.Components
+        var compilation = source.Left.Compilation;
+        var components = source.Left.Components
             .Where(c => c is not null)
             .Cast<ComponentInfo>()
             .ToList();
 
+        var deferred = source.Deferred
+            .Where(d => d is not null)
+            .Cast<DeferredInfo>()
+            .GroupBy(d => d.Path, StringComparer.Ordinal)
+            .Select(g => g.First())
+            .OrderBy(d => d.Path, StringComparer.Ordinal)
+            .ToList();
+
         // Generate C# routes
         GenerateCSharpRoutes(context, components);
+        GenerateCSharpDeferredRefs(context, deferred);
 
         // Generate TypeScript embedded in C# files (for MSBuild task to extract)
-        GenerateTypeScriptTypesEmbedded(context, source.Compilation, components);
+        GenerateTypeScriptTypesEmbedded(context, compilation, components);
         GenerateTypeScriptRoutesEmbedded(context, components);
         GenerateTypeScriptRouteDefsEmbedded(context, components);
         GenerateTypeScriptPathsEmbedded(context, components);
@@ -156,6 +221,28 @@ public class ShalimarGenerator : IIncrementalGenerator
         sb.AppendLine("}");
 
         context.AddSource("Routes.g.cs", SourceText.From(sb.ToString(), Encoding.UTF8));
+    }
+
+    private static void GenerateCSharpDeferredRefs(SourceProductionContext context, List<DeferredInfo> deferred)
+    {
+        if (deferred.Count == 0)
+            return;
+
+        var sb = new StringBuilder();
+        sb.AppendLine("// <auto-generated/>");
+        sb.AppendLine("namespace Shalimar.Generated;");
+        sb.AppendLine();
+        sb.AppendLine("public static class DeferredRefs");
+        sb.AppendLine("{");
+
+        foreach (var d in deferred)
+        {
+            var ts = d.ResultType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+            sb.AppendLine($"    public static global::Shalimar.Deferred<{ts}> {d.RefMethodName}() => new global::Shalimar.Deferred<{ts}>(\"{d.Path}\");");
+        }
+
+        sb.AppendLine("}");
+        context.AddSource("DeferredRefs.g.cs", SourceText.From(sb.ToString(), Encoding.UTF8));
     }
 
     private static void GenerateTypeScriptTypesEmbedded(
@@ -503,6 +590,18 @@ public class ShalimarGenerator : IIncrementalGenerator
                     continue;
                 }
 
+                // For generic user objects, enqueue the generic definition for emission and also traverse type arguments.
+                if (current is INamedTypeSymbol gen && gen.IsGenericType && gen.TypeArguments.Length > 0)
+                {
+                    foreach (var ta in gen.TypeArguments)
+                        queue.Enqueue(ta);
+
+                    // Prefer emitting the open generic definition (Deferred<T>) instead of a constructed type (Deferred<CrmInsights>).
+                    var def = gen.OriginalDefinition;
+                    if (!SymbolEqualityComparer.Default.Equals(def, current))
+                        queue.Enqueue(def);
+                }
+
                 // Arrays / collections / dictionaries.
                 var element = TryGetEnumerableElement(current);
                 if (element != null)
@@ -531,7 +630,9 @@ public class ShalimarGenerator : IIncrementalGenerator
 
                 if (current is INamedTypeSymbol obj && ShouldEmitObject(obj))
                 {
-                    output[obj.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)] = obj;
+                    // Emit open generic definitions (if present) for stable TS output.
+                    var emit = obj.IsGenericType ? obj.OriginalDefinition : obj;
+                    output[emit.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)] = emit;
                     foreach (var p in GetPublicProperties(obj))
                         queue.Enqueue(p.Type);
                 }
@@ -556,7 +657,18 @@ public class ShalimarGenerator : IIncrementalGenerator
                 return;
             }
 
-            sb.AppendLine($"export interface {type.Name} {{");
+            var typeParams = "";
+            if (type.IsGenericType && type.TypeArguments.Length > 0)
+            {
+                // Use definition type parameters when possible (e.g., Deferred<T>).
+                var def = type.OriginalDefinition;
+                if (def.TypeParameters.Length > 0)
+                {
+                    typeParams = "<" + string.Join(", ", def.TypeParameters.Select(p => p.Name)) + ">";
+                }
+            }
+
+            sb.AppendLine($"export interface {type.Name}{typeParams} {{");
             foreach (var prop in GetPublicProperties(type))
             {
                 var camelName = char.ToLowerInvariant(prop.Name[0]) + prop.Name.Substring(1);
@@ -654,6 +766,9 @@ public class ShalimarGenerator : IIncrementalGenerator
 
         private string ToTsType(ITypeSymbol type)
         {
+            if (type is ITypeParameterSymbol tp)
+                return tp.Name;
+
             // Handle nullable reference types (C# 8+).
             if (type.IsReferenceType && type.NullableAnnotation == NullableAnnotation.Annotated)
             {
@@ -681,10 +796,32 @@ public class ShalimarGenerator : IIncrementalGenerator
 
             if (type.TypeKind == TypeKind.Enum) return type.Name;
 
-            if (type is INamedTypeSymbol obj && ShouldEmitObject(obj)) return obj.Name;
+            if (type is INamedTypeSymbol obj && ShouldEmitObject(obj))
+            {
+                if (obj.IsGenericType && obj.TypeArguments.Length > 0)
+                {
+                    var args = string.Join(", ", obj.TypeArguments.Select(ToTsType));
+                    return $"{obj.Name}<{args}>";
+                }
+                return obj.Name;
+            }
 
             // Safe default to avoid generated TS breaking builds.
             return "unknown";
+        }
+    }
+
+    private sealed class DeferredInfo
+    {
+        public ITypeSymbol ResultType { get; }
+        public string Path { get; }
+        public string RefMethodName { get; }
+
+        public DeferredInfo(ITypeSymbol resultType, string path, string refMethodName)
+        {
+            ResultType = resultType;
+            Path = path;
+            RefMethodName = refMethodName;
         }
     }
 }

@@ -19,6 +19,16 @@ public static class RouteBuilderExtensions
     }
 
     /// <summary>
+    /// Marks this endpoint as a deferred JSON query. Deferred endpoints are intended to be
+    /// referenced from component props via <see cref="Deferred{T}"/> handles.
+    /// </summary>
+    public static RouteHandlerBuilder AsDeferred<T>(this RouteHandlerBuilder builder)
+    {
+        builder.WithMetadata(new ShalimarDeferredMetadata(typeof(T)));
+        return builder;
+    }
+
+    /// <summary>
     /// Associates a JSX file with this component route.
     /// </summary>
     public static RouteHandlerBuilder WithJsxFile(this RouteHandlerBuilder builder, string path)
@@ -37,3 +47,8 @@ public record ShalimarComponentMetadata(Type PropsType);
 /// Metadata for the JSX file path.
 /// </summary>
 public record ShalimarJsxFileMetadata(string Path);
+
+/// <summary>
+/// Metadata indicating this endpoint is a Shalimar deferred query.
+/// </summary>
+public record ShalimarDeferredMetadata(Type ResultType);

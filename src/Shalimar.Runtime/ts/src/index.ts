@@ -7,5 +7,8 @@ export { useShalimarContext, ShalimarProvider } from './context'
 export { createRouter } from './router'
 export type { ShalimarContext, ShalimarProviderProps } from './types'
 
+export { useDeferred, prefetchDeferred, clearDeferredCache } from './deferred'
+
+
 
 

@@ -51,9 +51,14 @@ app.MapGet("/", async (HttpContext http, CrmRepository repo) =>
         OverdueTasks: overdue,
         Accounts: snapshot.Accounts.Count,
         FocusTasks: snapshot.Tasks.Take(5).ToList(),
-        Activity: snapshot.Activity.Take(12).ToList());
+        Activity: snapshot.Activity.Take(12).ToList(),
+        Insights: Shalimar.Generated.DeferredRefs.CrmInsights());
     return await http.RenderComponent(MakeContext(app), props, "Shalimar App");
 }).AsComponent<DashboardProps>();
+
+// Deferred mode: resolves after hydration via typed handle in props.
+app.MapGet("/crm/insights", (CrmRepository repo) => repo.Insights())
+    .AsDeferred<CrmInsightsDto>();
 
 app.MapGet("/tasks", async (HttpContext http, CrmRepository repo) =>
 {

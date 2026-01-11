@@ -1,4 +1,5 @@
 using ShalimarApp.Features.Crm;
+using Shalimar;
 
 namespace ShalimarApp.Features.Home;
 
@@ -9,5 +10,6 @@ public sealed record DashboardProps(
     int OverdueTasks,
     int Accounts,
     IReadOnlyList<TaskDto> FocusTasks,
-    IReadOnlyList<ActivityItemDto> Activity);
+    IReadOnlyList<ActivityItemDto> Activity,
+    Deferred<CrmInsightsDto> Insights);
 

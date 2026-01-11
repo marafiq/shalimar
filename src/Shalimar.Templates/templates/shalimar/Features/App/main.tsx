@@ -10,7 +10,7 @@ declare global {
     interface Window {
         __SHALIMAR_CONTEXT__?: { environment: string }
         __SHALIMAR_VERSION__?: string
-        __SHALIMAR_PROPS__?: { message: string }
+        __SHALIMAR_PROPS__?: unknown
     }
 }
 
