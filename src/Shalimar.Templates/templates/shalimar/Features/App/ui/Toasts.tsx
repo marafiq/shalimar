@@ -12,7 +12,7 @@ function toneClasses(tone: 'neutral' | 'success' | 'warning' | 'danger') {
         case 'danger':
             return 'border-red-500/30 bg-red-500/10'
         default:
-            return 'border-black/10 bg-black/5 dark:border-white/10 dark:bg-white/10'
+            return 'border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-950/40'
     }
 }
 

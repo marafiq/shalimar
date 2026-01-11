@@ -104,12 +104,12 @@ export function TaskDrawer(props: {
     return (
         <div className="fixed inset-0 z-40" aria-label="Task drawer">
             <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" onClick={props.onClose} />
-            <aside className="absolute right-0 top-0 h-full w-[min(520px,100vw)] border-l border-black/10 bg-white shadow-xl dark:border-white/10 dark:bg-zinc-950">
+            <aside className="absolute right-0 top-0 h-full w-[min(520px,100vw)] border-l border-zinc-200 bg-white shadow-xl dark:border-zinc-800 dark:bg-zinc-950">
                 <div className="flex h-full flex-col">
-                    <div className="flex items-start justify-between gap-3 border-b border-black/10 px-5 py-4 dark:border-white/10">
+                    <div className="flex items-start justify-between gap-3 border-b border-zinc-200 px-5 py-4 dark:border-zinc-800">
                         <div className="min-w-0">
                             <Heading level={3}>{title}</Heading>
-                            <div className="mt-1 text-sm opacity-70">{headerMeta.subtitle}</div>
+                            <div className="mt-1 text-sm text-zinc-600 dark:text-zinc-300">{headerMeta.subtitle}</div>
                         </div>
                         <Button isQuiet onPress={props.onClose} aria-label="Close drawer">
                             <IconX />
@@ -121,7 +121,7 @@ export function TaskDrawer(props: {
                             <DrawerSkeleton />
                         ) : (
                             <div className="space-y-6">
-                                <div className="flex flex-wrap gap-2 rounded-2xl border border-black/10 bg-black/5 p-2 text-sm dark:border-white/10 dark:bg-white/10">
+                                <div className="flex flex-wrap gap-2 rounded-2xl border border-zinc-200 bg-zinc-50 p-2 text-sm dark:border-zinc-800 dark:bg-zinc-950/40">
                                     <Button isQuiet={tab !== 'details'} onPress={() => setTab('details')}>
                                         Details
                                     </Button>
@@ -203,7 +203,7 @@ export function TaskDrawer(props: {
                                                         ))}
                                                     </select>
                                                 </Field>
-                                                <div className="rounded-xl border border-black/10 p-3 text-sm dark:border-white/10">
+                                                <div className="rounded-xl border border-zinc-200 bg-white p-3 text-sm shadow-sm dark:border-zinc-800 dark:bg-zinc-950/40">
                                                     <div className="text-xs font-semibold uppercase tracking-wide opacity-60">Collaborators</div>
                                                     <div className="mt-2 space-y-2">
                                                         {state.users.map((u) => (
@@ -223,14 +223,14 @@ export function TaskDrawer(props: {
                                             </div>
 
                                             <div className="grid gap-3 sm:grid-cols-2">
-                                                <div className="rounded-xl border border-black/10 p-3 text-sm dark:border-white/10">
+                                                <div className="rounded-xl border border-zinc-200 bg-white p-3 text-sm shadow-sm dark:border-zinc-800 dark:bg-zinc-950/40">
                                                     <div className="text-xs font-semibold uppercase tracking-wide opacity-60">Mode</div>
                                                     <div className="mt-1 font-medium">{mode === 'new' ? 'Create' : 'Edit'}</div>
                                                     <div className="mt-1 opacity-70">
                                                         This drawer is the consistent “agent work surface”.
                                                     </div>
                                                 </div>
-                                                <div className="rounded-xl border border-black/10 p-3 text-sm dark:border-white/10">
+                                                <div className="rounded-xl border border-zinc-200 bg-white p-3 text-sm shadow-sm dark:border-zinc-800 dark:bg-zinc-950/40">
                                                     <div className="text-xs font-semibold uppercase tracking-wide opacity-60">Actions</div>
                                                     <div className="mt-2 flex flex-wrap gap-2">
                                                         <Button
@@ -276,7 +276,7 @@ export function TaskDrawer(props: {
                                             {!messages || props.forceThreadSkeleton ? <ThreadSkeleton /> : null}
                                         </div>
 
-                                        <div className="rounded-xl border border-black/10 p-3 dark:border-white/10">
+                                        <div className="rounded-xl border border-zinc-200 bg-white p-3 shadow-sm dark:border-zinc-800 dark:bg-zinc-950/40">
                                             <TextField
                                                 label="Reply"
                                                 placeholder="Ask the agent, add context, or send an update…"
@@ -299,7 +299,7 @@ export function TaskDrawer(props: {
                                         </div>
                                     </section>
                                 ) : tab === 'thread' ? (
-                                    <section className="rounded-xl border border-black/10 p-3 text-sm opacity-70 dark:border-white/10">
+                                    <section className="rounded-xl border border-zinc-200 bg-white p-3 text-sm text-zinc-600 shadow-sm dark:border-zinc-800 dark:bg-zinc-950/40 dark:text-zinc-300">
                                         Thread will be available after the task is created.
                                     </section>
                                 ) : null}
@@ -315,19 +315,24 @@ export function TaskDrawer(props: {
 
                                         <div className="space-y-2">
                                             {(decisions ?? []).map((d) => (
-                                                <div key={d.id} className="rounded-2xl border border-black/10 p-3 text-sm dark:border-white/10">
-                                                    <div className="text-xs opacity-60">{new Date(d.ts).toLocaleString()}</div>
+                                                <div
+                                                    key={d.id}
+                                                    className="rounded-2xl border border-zinc-200 bg-white p-3 text-sm shadow-sm dark:border-zinc-800 dark:bg-zinc-950/40"
+                                                >
+                                                    <div className="text-xs text-zinc-500 dark:text-zinc-400">{new Date(d.ts).toLocaleString()}</div>
                                                     <div className="mt-1 font-semibold">{d.question}</div>
                                                     <div className="mt-1 opacity-80">Outcome: {d.outcome}</div>
                                                     {d.rationale ? <div className="mt-1 opacity-70">Rationale: {d.rationale}</div> : null}
                                                 </div>
                                             ))}
                                             {!decisions ? (
-                                                <div className="rounded-xl border border-black/10 p-3 text-sm opacity-70 dark:border-white/10">Loading…</div>
+                                                <div className="rounded-xl border border-zinc-200 bg-white p-3 text-sm text-zinc-600 shadow-sm dark:border-zinc-800 dark:bg-zinc-950/40 dark:text-zinc-300">
+                                                    Loading…
+                                                </div>
                                             ) : null}
                                         </div>
 
-                                        <div className="rounded-2xl border border-black/10 p-3 dark:border-white/10">
+                                        <div className="rounded-2xl border border-zinc-200 bg-white p-3 shadow-sm dark:border-zinc-800 dark:bg-zinc-950/40">
                                             <TextField label="Question" value={decisionQuestion} onChange={setDecisionQuestion} />
                                             <div className="mt-3 grid gap-3 sm:grid-cols-2">
                                                 <Field label="Options (one per line)">
@@ -382,20 +387,25 @@ export function TaskDrawer(props: {
 
                                         <div className="space-y-2">
                                             {(artifacts ?? []).map((a) => (
-                                                <div key={a.id} className="rounded-2xl border border-black/10 p-3 text-sm dark:border-white/10">
+                                                <div
+                                                    key={a.id}
+                                                    className="rounded-2xl border border-zinc-200 bg-white p-3 text-sm shadow-sm dark:border-zinc-800 dark:bg-zinc-950/40"
+                                                >
                                                     <div className="flex items-baseline justify-between gap-2">
                                                         <div className="font-semibold">{a.title}</div>
-                                                        <div className="text-xs opacity-60">{a.kind}</div>
+                                                        <div className="text-xs text-zinc-500 dark:text-zinc-400">{a.kind}</div>
                                                     </div>
                                                     <div className="mt-1 whitespace-pre-wrap opacity-80">{a.content}</div>
                                                 </div>
                                             ))}
                                             {!artifacts ? (
-                                                <div className="rounded-xl border border-black/10 p-3 text-sm opacity-70 dark:border-white/10">Loading…</div>
+                                                <div className="rounded-xl border border-zinc-200 bg-white p-3 text-sm text-zinc-600 shadow-sm dark:border-zinc-800 dark:bg-zinc-950/40 dark:text-zinc-300">
+                                                    Loading…
+                                                </div>
                                             ) : null}
                                         </div>
 
-                                        <div className="rounded-2xl border border-black/10 p-3 dark:border-white/10">
+                                        <div className="rounded-2xl border border-zinc-200 bg-white p-3 shadow-sm dark:border-zinc-800 dark:bg-zinc-950/40">
                                             <div className="grid gap-3 sm:grid-cols-2">
                                                 <Field label="Kind">
                                                     <select
@@ -448,9 +458,9 @@ export function TaskDrawer(props: {
                         )}
                     </div>
 
-                    <div className="border-t border-black/10 px-5 py-4 dark:border-white/10">
+                    <div className="border-t border-zinc-200 px-5 py-4 dark:border-zinc-800">
                         <div className="flex flex-wrap items-center justify-between gap-2">
-                            <div className="text-xs opacity-60">Tip: press Esc to close (coming next)</div>
+                            <div className="text-xs text-zinc-500 dark:text-zinc-400">Tip: press Esc to close (coming next)</div>
                             <div className="flex flex-wrap gap-2">
                                 <Button isQuiet onPress={props.onClose}>
                                     Cancel
@@ -558,14 +568,14 @@ export function TaskDrawer(props: {
 }
 
 const inputClass =
-    'w-full rounded-md border border-black/10 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500/40 dark:border-white/10 dark:bg-zinc-950'
+    'w-full rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-950 outline-none focus:ring-2 focus:ring-blue-500/30 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-50'
 const selectClass = inputClass
 const textareaClass = `${inputClass} min-h-24`
 
 function Field(props: { label: string; children: React.ReactNode }) {
     return (
         <div>
-            <div className="mb-1 text-xs font-semibold uppercase tracking-wide opacity-60">{props.label}</div>
+            <div className="mb-1 text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">{props.label}</div>
             {props.children}
         </div>
     )
@@ -655,7 +665,7 @@ function MessageBubble(props: { actor: TaskActor; author: string; body: string; 
                     'max-w-[90%] rounded-2xl border px-3 py-2 text-sm',
                     mine
                         ? 'border-blue-500/30 bg-blue-500/10'
-                        : 'border-black/10 bg-black/5 dark:border-white/10 dark:bg-white/10',
+                        : 'border-zinc-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-950/40',
                 ].join(' ')}
             >
                 <div className="flex items-baseline justify-between gap-2">
@@ -671,7 +681,7 @@ function MessageBubble(props: { actor: TaskActor; author: string; body: string; 
 function ThreadSkeleton() {
     return (
         <div className="space-y-2" data-testid="thread-skeleton">
-            <div className="max-w-[85%] rounded-2xl border border-black/10 bg-black/5 p-3 dark:border-white/10 dark:bg-white/10">
+            <div className="max-w-[85%] rounded-2xl border border-zinc-200 bg-white p-3 shadow-sm dark:border-zinc-800 dark:bg-zinc-950/40">
                 <div className="h-3 w-32 rounded bg-black/10 dark:bg-white/10" />
                 <div className="mt-2 h-4 w-72 max-w-[60vw] rounded bg-black/10 dark:bg-white/10" />
             </div>

@@ -16,12 +16,12 @@ export function NotificationsPanel() {
     return (
         <div className="fixed inset-0 z-40" aria-label="Notifications panel">
             <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" onClick={() => setNotificationsOpen(false)} />
-            <aside className="absolute right-0 top-0 h-full w-[min(420px,100vw)] border-l border-black/10 bg-white shadow-xl dark:border-white/10 dark:bg-zinc-950">
+            <aside className="absolute right-0 top-0 h-full w-[min(420px,100vw)] border-l border-zinc-200 bg-white shadow-xl dark:border-zinc-800 dark:bg-zinc-950">
                 <div className="flex h-full flex-col">
-                    <div className="flex items-start justify-between gap-3 border-b border-black/10 px-4 py-3 dark:border-white/10">
+                    <div className="flex items-start justify-between gap-3 border-b border-zinc-200 px-4 py-3 dark:border-zinc-800">
                         <div>
                             <Heading level={3}>Notifications</Heading>
-                            <div className="text-sm opacity-70">
+                            <div className="text-sm text-zinc-600 dark:text-zinc-300">
                                 {unread ? `${unread} unread` : 'All caught up'}
                             </div>
                         </div>
@@ -32,7 +32,7 @@ export function NotificationsPanel() {
 
                     <div className="flex-1 overflow-auto p-4">
                         {ui.notifications.length === 0 ? (
-                            <div className="rounded-lg border border-black/10 p-4 text-sm opacity-70 dark:border-white/10">
+                            <div className="rounded-xl border border-zinc-200 bg-white p-4 text-sm text-zinc-600 shadow-sm dark:border-zinc-800 dark:bg-zinc-950/40 dark:text-zinc-300">
                                 No notifications yet.
                             </div>
                         ) : (
@@ -42,15 +42,17 @@ export function NotificationsPanel() {
                                         key={n.id}
                                         className={`rounded-xl border p-3 ${
                                             n.read
-                                                ? 'border-black/10 dark:border-white/10'
-                                                : 'border-blue-500/30 bg-blue-500/10'
+                                                ? 'border-zinc-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-950/40'
+                                                : 'border-blue-500/30 bg-blue-500/10 shadow-sm'
                                         }`}
                                     >
                                         <div className="flex items-start justify-between gap-3">
                                             <div className="min-w-0">
                                                 <div className="truncate text-sm font-semibold">{n.title}</div>
-                                                {n.message ? <div className="mt-1 text-sm opacity-75">{n.message}</div> : null}
-                                                <div className="mt-2 text-xs opacity-60">
+                                                {n.message ? (
+                                                    <div className="mt-1 text-sm text-zinc-600 dark:text-zinc-300">{n.message}</div>
+                                                ) : null}
+                                                <div className="mt-2 text-xs text-zinc-500 dark:text-zinc-400">
                                                     {new Date(n.ts).toLocaleTimeString()}
                                                 </div>
                                             </div>
@@ -71,9 +73,11 @@ export function NotificationsPanel() {
                                 {crm.activity.slice(0, 12).map((a) => (
                                     <div
                                         key={a.id}
-                                        className="rounded-xl border border-black/10 p-3 text-sm dark:border-white/10"
+                                        className="rounded-xl border border-zinc-200 bg-white p-3 text-sm shadow-sm dark:border-zinc-800 dark:bg-zinc-950/40"
                                     >
-                                        <div className="text-xs opacity-60">{new Date(a.ts).toLocaleTimeString()}</div>
+                                        <div className="text-xs text-zinc-500 dark:text-zinc-400">
+                                            {new Date(a.ts).toLocaleTimeString()}
+                                        </div>
                                         <div className="mt-1">{a.summary}</div>
                                     </div>
                                 ))}
@@ -86,7 +90,7 @@ export function NotificationsPanel() {
                         </div>
                     </div>
 
-                    <div className="border-t border-black/10 p-4 dark:border-white/10">
+                    <div className="border-t border-zinc-200 p-4 dark:border-zinc-800">
                         <div className="flex items-center justify-between gap-2">
                             <Button isQuiet onPress={markAllNotificationsRead}>
                                 Mark all read

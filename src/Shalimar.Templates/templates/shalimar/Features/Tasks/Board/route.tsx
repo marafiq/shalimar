@@ -83,7 +83,7 @@ function BoardRoute() {
                 </div>
             </div>
 
-            <div className="mt-6 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-black/10 bg-black/5 p-3 text-sm dark:border-white/10 dark:bg-white/10">
+            <div className="mt-6 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-zinc-200 bg-zinc-50 p-3 text-sm dark:border-zinc-800 dark:bg-zinc-950/40">
                 <div className="flex flex-wrap gap-2">
                     <Button isQuiet={focus !== 'all'} onPress={() => setFocus('all')}>
                         All work
@@ -92,16 +92,16 @@ function BoardRoute() {
                         My queue
                     </Button>
                 </div>
-                <div className="text-xs opacity-70">WIP guidance: keep “In progress” under 3 per agent.</div>
+                <div className="text-xs text-zinc-500 dark:text-zinc-400">WIP guidance: keep “In progress” under 3 per agent.</div>
             </div>
 
             <div className="mt-4 space-y-6">
                 {lanes.map((lane) => (
-                    <section key={lane.id} className="rounded-2xl border border-black/10 dark:border-white/10">
-                        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-black/10 bg-black/5 px-4 py-3 dark:border-white/10 dark:bg-white/10">
+                    <section key={lane.id} className="rounded-2xl border border-zinc-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-950/40">
+                        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-zinc-200 bg-zinc-50 px-4 py-3 dark:border-zinc-800 dark:bg-zinc-950/50">
                             <div className="min-w-0">
                                 <div className="truncate text-sm font-semibold">{lane.title}</div>
-                                <div className="mt-0.5 text-xs opacity-70">
+                                <div className="mt-0.5 text-xs text-zinc-500 dark:text-zinc-400">
                                     {lane.id === 'none' ? 'Unscoped work' : 'Epic workstream'}
                                 </div>
                             </div>
@@ -189,7 +189,7 @@ function SwimlaneColumn(props: {
         <div
             className={[
                 'min-w-0 rounded-2xl border p-3',
-                active ? 'border-blue-500/40 bg-blue-500/5' : 'border-black/10 dark:border-white/10',
+                active ? 'border-blue-500/40 bg-blue-500/5' : 'border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-950/30',
             ].join(' ')}
             onDragOver={(e) => {
                 if (!props.drag) return
@@ -205,7 +205,7 @@ function SwimlaneColumn(props: {
         >
             <div className="mb-2 flex items-center justify-between gap-2">
                 <div className="text-sm font-semibold opacity-80">{props.title}</div>
-                <div className="rounded-full border border-black/10 bg-white/70 px-2 py-0.5 text-xs tabular-nums dark:border-white/10 dark:bg-zinc-950/40">
+                <div className="rounded-full border border-zinc-200 bg-white px-2 py-0.5 text-xs tabular-nums shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
                     {props.count}
                 </div>
             </div>
@@ -224,7 +224,7 @@ function TaskCard(props: { task: Task; onOpen: () => void; onDragStart: () => vo
 
     return (
         <div
-            className="group rounded-2xl border border-black/10 bg-white p-3 shadow-sm dark:border-white/10 dark:bg-zinc-950"
+            className="group rounded-2xl border border-zinc-200 bg-white p-3 shadow-sm dark:border-zinc-800 dark:bg-zinc-950"
             draggable
             onDragStart={(e) => {
                 e.dataTransfer.setData('text/plain', props.task.id)
@@ -238,7 +238,7 @@ function TaskCard(props: { task: Task; onOpen: () => void; onDragStart: () => vo
                     <div className="truncate text-sm font-semibold">{props.task.title}</div>
                     <div className="mt-2 flex flex-wrap gap-2 text-xs">
                         <span className={`rounded-full px-2 py-0.5 ${priority}`}>{props.task.priority}</span>
-                        <span className="rounded-full border border-black/10 bg-black/5 px-2 py-0.5 opacity-80 dark:border-white/10 dark:bg-white/10">
+                        <span className="rounded-full border border-zinc-200 bg-zinc-50 px-2 py-0.5 text-zinc-600 shadow-sm dark:border-zinc-800 dark:bg-zinc-950/40 dark:text-zinc-300">
                             {props.task.status.replaceAll('_', ' ')}
                         </span>
                     </div>
