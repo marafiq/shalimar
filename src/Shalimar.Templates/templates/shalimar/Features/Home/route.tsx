@@ -139,7 +139,7 @@ function HomeRoute() {
 
                                 <div className="mt-3">
                                     <Suspense fallback={<InsightsSkeleton />}>
-                                        <InsightsLoaded href={props.insights.href} />
+                                        <InsightsLoaded href={props.agentPanel.props.insights.href} />
                                     </Suspense>
                                 </div>
                             </div>
@@ -157,7 +157,7 @@ function HomeRoute() {
                                 </div>
 
                                 <div className="mt-3">
-                                    <ForecastPanel href={props.forecast.href} />
+                                    <ForecastPanel href={props.agentPanel.props.forecast.href} />
                                 </div>
                             </div>
                         </CardPreview>
@@ -174,7 +174,7 @@ function HomeRoute() {
                                 </div>
 
                                 <div className="mt-3">
-                                    <SsePanel href={props.activitySse.href} />
+                                    <SsePanel href={props.agentPanel.props.activitySse.href} />
                                 </div>
                             </div>
                         </CardPreview>
@@ -191,7 +191,7 @@ function HomeRoute() {
                                 </div>
 
                                 <div className="mt-3">
-                                    <StreamedPanel href={props.activityExport.href} />
+                                    <StreamedPanel href={props.agentPanel.props.activityExport.href} />
                                 </div>
                             </div>
                         </CardPreview>

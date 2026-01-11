@@ -7,5 +7,5 @@ public sealed record AccountDetailProps(
     string AccountId,
     AccountDto? Account,
     IReadOnlyList<ContactDto> Contacts,
-    UserDto? Owner);
+    UserDto? Owner) : Shalimar.IComponentProps;
 

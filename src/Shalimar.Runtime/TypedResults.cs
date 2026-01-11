@@ -15,6 +15,7 @@ public static class ShalimarTypedResults
         string title = "Shalimar App",
         string version = "1.0.0")
         where TContext : class
+        where TProps : IComponentProps
         => new(context, props, title, version);
 }
 
@@ -23,6 +24,7 @@ public static class ShalimarTypedResults
 /// </summary>
 public sealed class ComponentResult<TContext, TProps> : IResult
     where TContext : class
+    where TProps : IComponentProps
 {
     private readonly TContext _context;
     private readonly TProps _props;

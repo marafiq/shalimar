@@ -55,6 +55,7 @@ public static class ShalimarExtensions
         string title = "Shalimar App",
         string version = "1.0.0")
         where TContext : class
+        where TProps : IComponentProps
     {
         var shellRenderer = httpContext.RequestServices.GetRequiredService<ShellRenderer>();
         var html = await shellRenderer.RenderAsync(context, props, title, version);

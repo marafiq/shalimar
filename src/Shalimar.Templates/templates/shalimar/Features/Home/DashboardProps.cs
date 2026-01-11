@@ -11,8 +11,12 @@ public sealed record DashboardProps(
     int Accounts,
     IReadOnlyList<TaskDto> FocusTasks,
     IReadOnlyList<ActivityItemDto> Activity,
+    Component<DashboardAgentPanelProps> AgentPanel) : IComponentProps;
+
+// Nested (composed) component props: keeps modes grouped and composable.
+public sealed record DashboardAgentPanelProps(
     Deferred<CrmInsightsDto> Insights,
     Lazy<CrmForecastDto> Forecast,
     Sse<CrmSseEventDto> ActivitySse,
-    Stream<CrmActivityExportRowDto> ActivityExport);
+    Stream<CrmActivityExportRowDto> ActivityExport) : IComponentProps;
 

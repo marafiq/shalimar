@@ -4,5 +4,5 @@ namespace ShalimarApp.Features.Accounts;
 
 public sealed record AccountsProps(
     string Message,
-    CrmSnapshot Crm);
+    CrmSnapshot Crm) : Shalimar.IComponentProps;
 

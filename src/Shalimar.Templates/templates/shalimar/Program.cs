@@ -57,6 +57,14 @@ app.MapGet("/", async (HttpContext http, CrmRepository repo) =>
     var snapshot = repo.Snapshot();
     var open = snapshot.Tasks.Count(t => t.Status != "done");
     var overdue = snapshot.Tasks.Count(t => t.DueAt is not null && t.DueAt.Value < DateTimeOffset.UtcNow && t.Status != "done");
+
+    // Compose nested props explicitly: modes belong to a composed child component.
+    var agentPanel = new Component<DashboardAgentPanelProps>(new DashboardAgentPanelProps(
+        Insights: Shalimar.Generated.Components.DashboardAgentPanelProps.Deferred.CrmInsights(),
+        Forecast: Shalimar.Generated.Components.DashboardAgentPanelProps.Lazy.CrmForecast(),
+        ActivitySse: Shalimar.Generated.Components.DashboardAgentPanelProps.Sse.CrmActivitySse(),
+        ActivityExport: Shalimar.Generated.Components.DashboardAgentPanelProps.Stream.CrmActivityExport()));
+
     var props = new DashboardProps(
         Message: "Welcome to Shalimar",
         OpenTasks: open,
@@ -64,21 +72,18 @@ app.MapGet("/", async (HttpContext http, CrmRepository repo) =>
         Accounts: snapshot.Accounts.Count,
         FocusTasks: snapshot.Tasks.Take(5).ToList(),
         Activity: snapshot.Activity.Take(12).ToList(),
-        Insights: Shalimar.Generated.Components.DashboardProps.Deferred.CrmInsights(),
-        Forecast: Shalimar.Generated.Components.DashboardProps.Lazy.CrmForecast(),
-        ActivitySse: Shalimar.Generated.Components.DashboardProps.Sse.CrmActivitySse(),
-        ActivityExport: Shalimar.Generated.Components.DashboardProps.Stream.CrmActivityExport());
+        AgentPanel: agentPanel);
     return ShalimarTypedResults.Component(MakeContext(app), props, "Shalimar App");
 }).AsComponent<DashboardProps>();
 
 // Deferred mode: resolves after hydration via typed handle in props.
 app.MapGet("/crm/insights", (CrmRepository repo) => repo.Insights())
-    .ForComponent<DashboardProps>()
+    .ForComponent<DashboardAgentPanelProps>()
     .AsDeferred<CrmInsightsDto>();
 
 // Lazy mode: resolves only on user intent via typed handle in props.
 app.MapGet("/crm/forecast", (CrmRepository repo) => repo.Forecast())
-    .ForComponent<DashboardProps>()
+    .ForComponent<DashboardAgentPanelProps>()
     .AsLazy<CrmForecastDto>();
 
 // SSE subscription mode (realtime / long-lived). Separate from Streamed mode.
@@ -117,7 +122,7 @@ app.MapGet("/crm/activity/sse", async (HttpContext http, CrmRepository repo, Can
 
     return Results.Empty;
 })
-    .ForComponent<DashboardProps>()
+    .ForComponent<DashboardAgentPanelProps>()
     .AsSse<CrmSseEventDto>();
 
 // Streamed mode (finite): NDJSON over HTTP using an IAsyncEnumerable-like writer.
@@ -135,7 +140,7 @@ app.MapGet("/crm/activity/export", async (HttpContext http, CrmRepository repo, 
 
     return Results.Empty;
 })
-    .ForComponent<DashboardProps>()
+    .ForComponent<DashboardAgentPanelProps>()
     .AsStream<CrmActivityExportRowDto>();
 
 app.MapGet("/tasks", async (HttpContext http, CrmRepository repo) =>
@@ -226,7 +231,7 @@ app.MapPost("/crm/tasks", async (CrmRepository repo, IValidator<CreateTaskReques
     if (!result.IsValid) return Results.ValidationProblem(ToValidationProblem(result));
     return Results.Ok(repo.CreateTask(req));
 })
-    .Invalidates<DashboardProps>()
+    .Invalidates<DashboardAgentPanelProps>()
     .AsMutation<CreateTaskRequest, TaskDto>();
 
 app.MapPatch("/crm/tasks/{taskId}", async (CrmRepository repo, IValidator<UpdateTaskRequest> v, string taskId, UpdateTaskRequest req) =>

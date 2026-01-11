@@ -12,6 +12,7 @@ public static class RouteBuilderExtensions
     /// Marks this endpoint as a component route with associated props type.
     /// </summary>
     public static RouteHandlerBuilder AsComponent<TProps>(this RouteHandlerBuilder builder)
+        where TProps : IComponentProps
     {
         // Store metadata for source generator to process
         builder.WithMetadata(new ShalimarComponentMetadata(typeof(TProps)));
@@ -23,6 +24,7 @@ public static class RouteBuilderExtensions
     /// This enables generator output to be organized as a component tree.
     /// </summary>
     public static RouteHandlerBuilder ForComponent<TProps>(this RouteHandlerBuilder builder)
+        where TProps : IComponentProps
     {
         builder.WithMetadata(new ShalimarForComponentMetadata(typeof(TProps)));
         return builder;
@@ -82,6 +84,7 @@ public static class RouteBuilderExtensions
     /// This is used by the generator to emit typed invalidation helpers.
     /// </summary>
     public static RouteHandlerBuilder Invalidates<TProps>(this RouteHandlerBuilder builder)
+        where TProps : IComponentProps
     {
         builder.WithMetadata(new ShalimarInvalidatesMetadata(typeof(TProps)));
         return builder;
