@@ -1,9 +1,11 @@
 import { Button, Heading, TextField } from '@react-spectrum/s2'
 import { Suspense, useEffect, useMemo, useState } from 'react'
+import { useNavigate, useRouterState } from '@tanstack/react-router'
 import { pushToast } from '../../App/ui/store'
 import { useMutationSubmit } from '../../App/forms/useMutationSubmit'
 import { useMutations } from '@generated/useMutations'
 import { invalidateV2TasksPropsGrid, useV2TasksProps, useV2TasksPropsGridDeferred } from '@generated/store'
+import { paths } from '@generated/paths'
 
 function GridSkeleton() {
     return (
@@ -18,11 +20,15 @@ function GridSkeleton() {
 function V2TasksGrid() {
     const grid = useV2TasksPropsGridDeferred()
 
+    const navigate = useNavigate()
+    const search = useRouterState({ select: (s) => s.location.search })
+    const sp = useMemo(() => new URLSearchParams(search), [search])
+
     const navigatePage = (page: number) => {
-        const next = new URLSearchParams(window.location.search)
+        const next = new URLSearchParams(sp)
         next.set('page', String(Math.max(1, page)))
-        // Keep server-first: reload so server can own the next props tree.
-        window.location.assign(`/v2/tasks?${next.toString()}`)
+        // Server-first route: navigate to same route with new query, causing server re-render.
+        navigate({ to: paths.v2TasksProps(), search: Object.fromEntries(next.entries()) })
     }
 
     return (
@@ -119,31 +125,27 @@ function CreatePane(props: { onClose: () => void }) {
 export default function V2TasksPage() {
     const props = useV2TasksProps()
 
-    const initialSearch = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : new URLSearchParams()
-    const [createOpen, setCreateOpen] = useState(initialSearch.get('create') === '1')
-    const [q, setQ] = useState(initialSearch.get('q') ?? '')
-    const [status, setStatus] = useState(initialSearch.get('status') ?? '')
-    const [priority, setPriority] = useState(initialSearch.get('priority') ?? '')
+    const navigate = useNavigate()
+    const search = useRouterState({ select: (s) => s.location.search })
+    const sp = useMemo(() => new URLSearchParams(search), [search])
+
+    const [createOpen, setCreateOpen] = useState(sp.get('create') === '1')
+    const [q, setQ] = useState(sp.get('q') ?? '')
+    const [status, setStatus] = useState(sp.get('status') ?? '')
+    const [priority, setPriority] = useState(sp.get('priority') ?? '')
 
     useEffect(() => {
-        const onPop = () => {
-            const now = new URLSearchParams(window.location.search)
-            setCreateOpen(now.get('create') === '1')
-            setQ(now.get('q') ?? '')
-            setStatus(now.get('status') ?? '')
-            setPriority(now.get('priority') ?? '')
-        }
-        window.addEventListener('popstate', onPop)
-        return () => window.removeEventListener('popstate', onPop)
-    }, [])
+        setCreateOpen(sp.get('create') === '1')
+        setQ(sp.get('q') ?? '')
+        setStatus(sp.get('status') ?? '')
+        setPriority(sp.get('priority') ?? '')
+    }, [sp])
 
     const setCreateParam = (open: boolean) => {
-        const next = new URLSearchParams(window.location.search)
+        const next = new URLSearchParams(sp)
         if (open) next.set('create', '1')
         else next.delete('create')
-        const url = window.location.pathname + (next.toString() ? `?${next.toString()}` : '')
-        window.history.replaceState(null, '', url)
-        setCreateOpen(open)
+        navigate({ to: paths.v2TasksProps(), search: Object.fromEntries(next.entries()) })
     }
 
     const onOpenCreate = () => {
@@ -155,7 +157,7 @@ export default function V2TasksPage() {
     }
 
     const onApplyFilters = () => {
-        const next = new URLSearchParams(window.location.search)
+        const next = new URLSearchParams(sp)
         next.delete('create')
         next.set('page', '1')
         if (q.trim()) next.set('q', q.trim())
@@ -164,7 +166,7 @@ export default function V2TasksPage() {
         else next.delete('status')
         if (priority.trim()) next.set('priority', priority.trim())
         else next.delete('priority')
-        window.location.assign(`/v2/tasks?${next.toString()}`)
+        navigate({ to: paths.v2TasksProps(), search: Object.fromEntries(next.entries()) })
     }
 
     return (
