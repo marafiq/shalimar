@@ -27,13 +27,8 @@ export function useMutationSubmit<TReq, TRes>(spec: MutationSpec<TReq, TRes>) {
             setError(null)
 
             try {
-                const parsed = spec.schema.safeParse(req)
-                if (!parsed.success) {
-                    const issues = parsed.error.issues.map((i) => ({ path: i.path, message: i.message }))
-                    const mapped = spec.mapClientIssues ? spec.mapClientIssues(issues) : null
-                    setValidation(mapped ?? {})
-                    return null
-                }
+                // Server is source-of-truth: do NOT block submission on client-side validation.
+                // The generated schema is provided for optional UX (previews, hints, max-length), but the mutation runs regardless.
 
                 const result = await spec.mutate(req)
                 if (result.ok) return result.value

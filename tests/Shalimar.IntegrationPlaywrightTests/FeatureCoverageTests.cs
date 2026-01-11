@@ -117,7 +117,7 @@ public class FeatureCoverageTests(IntegrationAppFixture fixture)
 
             await Assertions.Expect(page.GetByTestId("create-title-error")).ToBeVisibleAsync();
             await Assertions.Expect(page.GetByTestId("create-save")).ToBeVisibleAsync();
-            Assert.Equal(0, createRequests);
+            Assert.Equal(1, createRequests);
         }
         catch (Exception ex)
         {

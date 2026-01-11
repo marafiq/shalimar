@@ -1499,7 +1499,7 @@ public class ShalimarGenerator : IIncrementalGenerator
         tsSb.AppendLine("import type { ValidationErrors, MutationResult } from './shalimar-mutations.g'");
         tsSb.AppendLine("import {");
         foreach (var m in mutations.OrderBy(m => m.MethodName, StringComparer.Ordinal))
-            tsSb.AppendLine($"    {m.MethodName},");
+            tsSb.AppendLine($"    mutate{m.MethodName},");
         tsSb.AppendLine("} from './shalimar-mutations.g'");
         tsSb.AppendLine("import {");
         foreach (var r in requests.Where(r => r is not null).OrderBy(r => r!.Name, StringComparer.Ordinal))
@@ -1557,9 +1557,8 @@ public class ShalimarGenerator : IIncrementalGenerator
         {
             var req = m.RequestType.Name;
             var res = m.ResponseType.Name;
-            // e.g. mutateCrmTasks -> CrmTasks
-            var key = m.MethodName.StartsWith("mutate", StringComparison.Ordinal) ? m.MethodName.Substring("mutate".Length) : m.MethodName;
-            tsSb.AppendLine($"    {key}: {{ defaults: {req}Defaults, schema: {req}Schema, mutate: {m.MethodName}, serverKey: defaultServerKey, mapClientIssues: mapIssues }} satisfies MutationSpec<{req}, {res}>,");
+            // Key is the logical mutation name, value points at the generated mutate function.
+            tsSb.AppendLine($"    {m.MethodName}: {{ defaults: {req}Defaults, schema: {req}Schema, mutate: mutate{m.MethodName}, serverKey: defaultServerKey, mapClientIssues: mapIssues }} satisfies MutationSpec<{req}, {res}>,");
         }
         tsSb.AppendLine("} as const");
         tsSb.AppendLine();
