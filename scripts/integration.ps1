@@ -40,12 +40,12 @@ if (-not $SkipPack) {
 
     if ($VerifyTsMarker) {
         Write-Host "  Adding TS marker to runtime (temporary): $VerifyTsMarker" -ForegroundColor Cyan
-        $original = Get-Content $RuntimeIndexTs -Raw
+        $originalBytes = [System.IO.File]::ReadAllBytes($RuntimeIndexTs)
         try {
             Add-Content -Path $RuntimeIndexTs -Value "`n// $VerifyTsMarker`n"
             & "$PSScriptRoot/pack.ps1" -Version $Version
         } finally {
-            Set-Content -Path $RuntimeIndexTs -Value $original
+            [System.IO.File]::WriteAllBytes($RuntimeIndexTs, $originalBytes)
         }
     } else {
     & "$PSScriptRoot/pack.ps1" -Version $Version
