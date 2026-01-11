@@ -591,6 +591,7 @@ public class ShalimarGenerator : IIncrementalGenerator
         GenerateTypeScriptRoutesEmbedded(context, components);
         GenerateTypeScriptV2RouteModulesEmbedded(context, components);
         GenerateTypeScriptV2StoreEmbedded(context, compilation, components);
+        GenerateTypeScriptV2SelectorsEmbedded(context, compilation, components);
         GenerateTypeScriptRouteDefsEmbedded(context, components);
         GenerateTypeScriptPathsEmbedded(context, components);
         GenerateTypeScriptFacadesEmbedded(context);
@@ -1619,8 +1620,8 @@ public class ShalimarGenerator : IIncrementalGenerator
             tsSb.AppendLine("        return null");
             tsSb.AppendLine("    },");
             tsSb.AppendLine("    component: () => {");
-            tsSb.AppendLine($"        const props = useV2Props('{typeName}')");
-            tsSb.AppendLine("        return <V2Component {...(props as any)} />");
+            tsSb.AppendLine($"        useV2Props('{typeName}')");
+            tsSb.AppendLine("        return <V2Component />");
             tsSb.AppendLine("    },");
             tsSb.AppendLine("})");
             tsSb.AppendLine();
@@ -1691,6 +1692,126 @@ public class ShalimarGenerator : IIncrementalGenerator
         csSb.AppendLine("END_SHALIMAR_TS");
         csSb.AppendLine("*/");
         context.AddSource("ShalimarV2Store.g.cs", SourceText.From(csSb.ToString(), Encoding.UTF8));
+    }
+
+    private sealed class V2Leaf
+    {
+        public string RootTypeName { get; }
+        public string FunctionSuffixPascal { get; }
+        public string TsAccessPathToHandle { get; }
+        public ModeKind Mode { get; }
+
+        public V2Leaf(string rootTypeName, string functionSuffixPascal, string tsAccessPathToHandle, ModeKind mode)
+        {
+            RootTypeName = rootTypeName;
+            FunctionSuffixPascal = functionSuffixPascal;
+            TsAccessPathToHandle = tsAccessPathToHandle;
+            Mode = mode;
+        }
+    }
+
+    private static void GenerateTypeScriptV2SelectorsEmbedded(
+        SourceProductionContext context,
+        Compilation compilation,
+        List<ComponentInfo> components)
+    {
+        var v2 = components
+            .Where(c => !string.IsNullOrWhiteSpace(c.TsxFile) &&
+                        c.TsxFile!.Replace('\\', '/').StartsWith("Features/V2/", StringComparison.Ordinal))
+            .OrderBy(c => c.TypeName, StringComparer.Ordinal)
+            .ToList();
+
+        if (v2.Count == 0) return;
+
+        var deferredDef = compilation.GetTypeByMetadataName("Shalimar.Deferred`1");
+        var lazyDef = compilation.GetTypeByMetadataName("Shalimar.Lazy`1");
+        var streamDef = compilation.GetTypeByMetadataName("Shalimar.Stream`1");
+        var sseDef = compilation.GetTypeByMetadataName("Shalimar.Sse`1");
+        var componentDef = compilation.GetTypeByMetadataName("Shalimar.Component`1");
+
+        var leaves = new List<V2Leaf>();
+
+        foreach (var c in v2)
+        {
+            var rootProps = compilation.GetTypeByMetadataName($"{c.Namespace}.{c.TypeName}");
+            if (rootProps is null) continue;
+
+            Collect(rootProps, currentProps: rootProps, tsPrefix: "", suffixPascal: "");
+        }
+
+        void Collect(INamedTypeSymbol rootProps, INamedTypeSymbol currentProps, string tsPrefix, string suffixPascal)
+        {
+            foreach (var p in currentProps.GetMembers().OfType<IPropertySymbol>())
+            {
+                if (p.DeclaredAccessibility != Accessibility.Public || p.IsStatic) continue;
+
+                var csName = p.Name;
+                var tsName = csName.Length == 0 ? csName : char.ToLowerInvariant(csName[0]) + csName.Substring(1);
+
+                var nextTsPrefix = string.IsNullOrEmpty(tsPrefix) ? tsName : tsPrefix + "." + tsName;
+                var nextSuffix = suffixPascal + csName; // keep pascal for function name stability
+
+                if (p.Type is INamedTypeSymbol named && named.IsGenericType)
+                {
+                    var def = named.ConstructedFrom;
+
+                    if (componentDef is not null && SymbolEqualityComparer.Default.Equals(def, componentDef))
+                    {
+                        if (named.TypeArguments.Length == 1 && named.TypeArguments[0] is INamedTypeSymbol childProps)
+                            Collect(rootProps, childProps, tsPrefix: nextTsPrefix + ".props", suffixPascal: nextSuffix);
+                        continue;
+                    }
+
+                    if (deferredDef is not null && SymbolEqualityComparer.Default.Equals(def, deferredDef))
+                        leaves.Add(new V2Leaf(rootProps.Name, nextSuffix, nextTsPrefix, ModeKind.Deferred));
+                    else if (lazyDef is not null && SymbolEqualityComparer.Default.Equals(def, lazyDef))
+                        leaves.Add(new V2Leaf(rootProps.Name, nextSuffix, nextTsPrefix, ModeKind.Lazy));
+                    else if (streamDef is not null && SymbolEqualityComparer.Default.Equals(def, streamDef))
+                        leaves.Add(new V2Leaf(rootProps.Name, nextSuffix, nextTsPrefix, ModeKind.Stream));
+                    else if (sseDef is not null && SymbolEqualityComparer.Default.Equals(def, sseDef))
+                        leaves.Add(new V2Leaf(rootProps.Name, nextSuffix, nextTsPrefix, ModeKind.Sse));
+                }
+            }
+        }
+
+        leaves = leaves
+            .GroupBy(l => (l.RootTypeName, l.FunctionSuffixPascal, l.TsAccessPathToHandle, l.Mode))
+            .Select(g => g.First())
+            .OrderBy(l => l.RootTypeName, StringComparer.Ordinal)
+            .ThenBy(l => l.TsAccessPathToHandle, StringComparer.Ordinal)
+            .ThenBy(l => l.Mode.ToString(), StringComparer.Ordinal)
+            .ToList();
+
+        var tsSb = new StringBuilder();
+        tsSb.AppendLine("// Generated by Shalimar - DO NOT EDIT");
+        tsSb.AppendLine("import { useV2Props } from './shalimar-v2-store.g'");
+        tsSb.AppendLine();
+
+        foreach (var c in v2)
+        {
+            tsSb.AppendLine($"export function use{c.TypeName}() {{");
+            tsSb.AppendLine($"    return useV2Props('{c.TypeName}')");
+            tsSb.AppendLine("}");
+            tsSb.AppendLine();
+        }
+
+        foreach (var leaf in leaves)
+        {
+            var fn = $"use{leaf.RootTypeName}{leaf.FunctionSuffixPascal}Href";
+            tsSb.AppendLine($"export function {fn}(): string {{");
+            tsSb.AppendLine($"    return useV2Props('{leaf.RootTypeName}').{leaf.TsAccessPathToHandle}.href");
+            tsSb.AppendLine("}");
+            tsSb.AppendLine();
+        }
+
+        var csSb = new StringBuilder();
+        csSb.AppendLine("// <auto-generated/>");
+        csSb.AppendLine("/*");
+        csSb.AppendLine("SHALIMAR_TS: shalimar-v2-selectors.g.ts");
+        csSb.Append(tsSb);
+        csSb.AppendLine("END_SHALIMAR_TS");
+        csSb.AppendLine("*/");
+        context.AddSource("ShalimarV2Selectors.g.cs", SourceText.From(csSb.ToString(), Encoding.UTF8));
     }
 
     private sealed class RouteNode
@@ -2013,6 +2134,7 @@ public class ShalimarGenerator : IIncrementalGenerator
             export * from './shalimar-invalidations.g'
             export * from './shalimar-mutations.g'
             export * from './shalimar-v2-store.g'
+            export * from './shalimar-v2-selectors.g'
             """);
     }
 

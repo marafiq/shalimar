@@ -1,7 +1,7 @@
 import { Button, Heading, Text } from '@react-spectrum/s2'
 import { useDeferred, useBehaviors } from '@shalimar/runtime'
 import { Suspense } from 'react'
-import type { WorkbenchProps } from '@generated/types'
+import { useWorkbenchProps, useWorkbenchPropsAgentPanelInsightsHref, useWorkbenchPropsSummaryHref } from '@generated/store'
 
 function SummaryCard(props: { title: string; value: string; hint?: string }) {
     return (
@@ -49,7 +49,11 @@ function AgentInsights(props: { href: string }) {
     )
 }
 
-export default function WorkbenchPage(props: WorkbenchProps) {
+export default function WorkbenchPage() {
+    const props = useWorkbenchProps()
+    const summaryHref = useWorkbenchPropsSummaryHref()
+    const insightsHref = useWorkbenchPropsAgentPanelInsightsHref()
+
     // Server-owned behavior plan: prefetch deferred leaves for snappy UX after hydration.
     useBehaviors(props.agentPanel.behaviors)
 
@@ -73,7 +77,7 @@ export default function WorkbenchPage(props: WorkbenchProps) {
                     </div>
                 }
             >
-                <Summary href={props.summary.href} />
+                <Summary href={summaryHref} />
             </Suspense>
 
             <Suspense
@@ -88,7 +92,7 @@ export default function WorkbenchPage(props: WorkbenchProps) {
                     </div>
                 }
             >
-                <AgentInsights href={props.agentPanel.props.insights.href} />
+                <AgentInsights href={insightsHref} />
             </Suspense>
         </div>
     )
