@@ -34,6 +34,19 @@ public sealed class CrmRepository
         lock (_gate) return _activity.ToList();
     }
 
+    public CrmSnapshot Snapshot()
+    {
+        lock (_gate)
+        {
+            return new CrmSnapshot(
+                Users: _users.ToList(),
+                Accounts: _accounts.ToList(),
+                Epics: _epics.ToList(),
+                Tasks: _tasks.ToList(),
+                Activity: _activity.ToList());
+        }
+    }
+
     public TaskDto? GetTask(string taskId) => _tasks.FirstOrDefault(t => t.Id == taskId);
 
     public EpicDto? GetEpic(string epicId) => _epics.FirstOrDefault(e => e.Id == epicId);

@@ -10,6 +10,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="FluentValidation.DependencyInjectionExtensions" Version="12.1.1" />
     <PackageReference Include="Shalimar.Runtime" Version="1.0.0-local" />
     <PackageReference Include="Shalimar.Vite" Version="1.0.0-local" />
     <PackageReference Include="Shalimar.SourceGenerator" Version="1.0.0-local" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />

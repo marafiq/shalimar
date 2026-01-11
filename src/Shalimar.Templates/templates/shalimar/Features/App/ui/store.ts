@@ -23,6 +23,7 @@ export interface NotificationItem {
 export interface UiState {
     mobileNavOpen: boolean
     notificationsOpen: boolean
+    sidebarCollapsed: boolean
     toasts: ToastItem[]
     notifications: NotificationItem[]
     modal: null | { title: string; body: string }
@@ -39,6 +40,7 @@ function makeId(prefix: string) {
 export const uiStore = new Store<UiState>({
     mobileNavOpen: false,
     notificationsOpen: false,
+    sidebarCollapsed: false,
     toasts: [],
     notifications: [
         {
@@ -67,6 +69,10 @@ export function setNotificationsOpen(open: boolean) {
 
 export function toggleNotifications() {
     uiStore.setState((s) => ({ ...s, notificationsOpen: !s.notificationsOpen }))
+}
+
+export function toggleSidebarCollapsed() {
+    uiStore.setState((s) => ({ ...s, sidebarCollapsed: !s.sidebarCollapsed }))
 }
 
 export function pushToast(toast: Omit<ToastItem, 'id' | 'ts'>) {

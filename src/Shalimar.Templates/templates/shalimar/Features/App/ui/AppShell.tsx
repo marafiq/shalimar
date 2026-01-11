@@ -1,13 +1,14 @@
 import { Link, useRouterState } from '@tanstack/react-router'
 import { useStore } from '@tanstack/react-store'
 import { Button, Heading, Text, TextField } from '@react-spectrum/s2'
-import { IconBell, IconMenu } from './icons'
-import { setMobileNavOpen, toggleNotifications, uiStore } from './store'
+import { IconBell, IconChevronRight, IconMenu } from './icons'
+import { setMobileNavOpen, toggleNotifications, toggleSidebarCollapsed, uiStore } from './store'
 
 export function AppShell(props: { children: React.ReactNode }) {
     const ui = useStore(uiStore)
     const pathname = useRouterState({ select: (s) => s.location.pathname })
     const unread = ui.notifications.filter((n) => !n.read).length
+    const gridCols = ui.sidebarCollapsed ? 'lg:grid-cols-[84px_1fr]' : 'lg:grid-cols-[280px_1fr]'
 
     return (
         <div className="min-h-full bg-white text-black dark:bg-zinc-950 dark:text-white">
@@ -49,23 +50,31 @@ export function AppShell(props: { children: React.ReactNode }) {
                 </div>
             </header>
 
-            <div className="mx-auto grid max-w-7xl grid-cols-1 gap-6 px-4 py-6 sm:px-6 lg:grid-cols-[280px_1fr]">
+            <div className={`mx-auto grid max-w-7xl grid-cols-1 gap-6 px-4 py-6 sm:px-6 ${gridCols}`}>
                 {/* Desktop sidebar */}
                 <aside className="hidden lg:block">
                     <div className="sticky top-[84px] space-y-4">
+                        <div className="flex items-center justify-between">
+                            {ui.sidebarCollapsed ? null : <div className="px-2 text-xs font-semibold uppercase tracking-wide opacity-60">Navigation</div>}
+                            <Button isQuiet onPress={toggleSidebarCollapsed} aria-label="Toggle sidebar">
+                                <span className={ui.sidebarCollapsed ? 'rotate-180 inline-flex' : 'inline-flex'}>
+                                    <IconChevronRight />
+                                </span>
+                            </Button>
+                        </div>
                         <SidebarSection title="Work">
-                            <NavItem to="/" active={pathname === '/'} label="Dashboard" />
-                            <NavItem to="/tasks" active={pathname === '/tasks'} label="Tasks" />
-                            <NavItem to="/tasks/board" active={pathname === '/tasks/board'} label="Board" />
+                            <NavItem collapsed={ui.sidebarCollapsed} to="/" active={pathname === '/'} label="Dashboard" />
+                            <NavItem collapsed={ui.sidebarCollapsed} to="/tasks" active={pathname === '/tasks'} label="Tasks" />
+                            <NavItem collapsed={ui.sidebarCollapsed} to="/tasks/board" active={pathname === '/tasks/board'} label="Board" />
                         </SidebarSection>
                         <SidebarSection title="Customers">
-                            <NavItem to="/accounts" active={pathname.startsWith('/accounts')} label="Accounts" />
+                            <NavItem collapsed={ui.sidebarCollapsed} to="/accounts" active={pathname.startsWith('/accounts')} label="Accounts" />
                         </SidebarSection>
                         <SidebarSection title="System">
-                            <NavItem to="/settings" active={pathname === '/settings'} label="Settings" />
+                            <NavItem collapsed={ui.sidebarCollapsed} to="/settings" active={pathname === '/settings'} label="Settings" />
                         </SidebarSection>
 
-                        <div className="rounded-2xl border border-black/10 bg-black/5 p-4 text-sm dark:border-white/10 dark:bg-white/10">
+                        <div className={`rounded-2xl border border-black/10 bg-black/5 p-4 text-sm dark:border-white/10 dark:bg-white/10 ${ui.sidebarCollapsed ? 'hidden' : ''}`}>
                             <div className="font-semibold">Agent queue</div>
                             <div className="mt-1 opacity-70">
                                 Routing model: <span className="font-medium">Mock</span>
@@ -122,7 +131,8 @@ function SidebarSection(props: { title: string; children: React.ReactNode }) {
     )
 }
 
-function NavItem(props: { to: string; label: string; active: boolean; onNavigate?: () => void }) {
+function NavItem(props: { to: string; label: string; active: boolean; collapsed?: boolean; onNavigate?: () => void }) {
+    const mono = props.label.slice(0, 1)
     return (
         <Link
             to={props.to}
@@ -134,8 +144,16 @@ function NavItem(props: { to: string; label: string; active: boolean; onNavigate
                 props.active ? 'bg-black/5 font-semibold dark:bg-white/10' : 'opacity-90',
             ].join(' ')}
         >
-            <span className="truncate">{props.label}</span>
-            <span className="text-xs opacity-40">›</span>
+            {props.collapsed ? (
+                <span className="inline-flex h-7 w-7 items-center justify-center rounded-lg border border-black/10 bg-white/60 text-xs font-semibold dark:border-white/10 dark:bg-zinc-950/40">
+                    {mono}
+                </span>
+            ) : (
+                <>
+                    <span className="truncate">{props.label}</span>
+                    <span className="text-xs opacity-40">›</span>
+                </>
+            )}
         </Link>
     )
 }
