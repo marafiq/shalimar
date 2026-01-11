@@ -29,6 +29,16 @@ public static class RouteBuilderExtensions
     }
 
     /// <summary>
+    /// Marks this endpoint as a lazy JSON query. Lazy endpoints are intended to be
+    /// referenced from component props via <see cref="Lazy{T}"/> handles and fetched only on demand.
+    /// </summary>
+    public static RouteHandlerBuilder AsLazy<T>(this RouteHandlerBuilder builder)
+    {
+        builder.WithMetadata(new ShalimarLazyMetadata(typeof(T)));
+        return builder;
+    }
+
+    /// <summary>
     /// Associates a JSX file with this component route.
     /// </summary>
     public static RouteHandlerBuilder WithJsxFile(this RouteHandlerBuilder builder, string path)
@@ -52,3 +62,8 @@ public record ShalimarJsxFileMetadata(string Path);
 /// Metadata indicating this endpoint is a Shalimar deferred query.
 /// </summary>
 public record ShalimarDeferredMetadata(Type ResultType);
+
+/// <summary>
+/// Metadata indicating this endpoint is a Shalimar lazy query.
+/// </summary>
+public record ShalimarLazyMetadata(Type ResultType);

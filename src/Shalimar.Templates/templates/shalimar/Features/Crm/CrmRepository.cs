@@ -76,6 +76,30 @@ public sealed class CrmRepository
         }
     }
 
+    public CrmForecastDto Forecast()
+    {
+        lock (_gate)
+        {
+            var summary = "Forecast is stable. Biggest impact comes from unblocking high priority work in active epics.";
+
+            var drivers = new List<string>
+            {
+                "Blocked tasks reduce throughput and increase cycle time.",
+                "High-priority tasks in active epics drive customer outcomes.",
+                "Too many open tasks creates context switching."
+            };
+
+            var plays = new List<string>
+            {
+                "Schedule a 15-minute blocker resolution huddle today.",
+                "Convert one artifact into a customer-ready deliverable.",
+                "Split large tasks into <60 minute slices before assigning."
+            };
+
+            return new CrmForecastDto(summary, drivers, plays);
+        }
+    }
+
     public TaskDto? GetTask(string taskId) => _tasks.FirstOrDefault(t => t.Id == taskId);
 
     public EpicDto? GetEpic(string epicId) => _epics.FirstOrDefault(e => e.Id == epicId);

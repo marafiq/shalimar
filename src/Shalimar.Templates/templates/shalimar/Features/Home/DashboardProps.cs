@@ -11,5 +11,6 @@ public sealed record DashboardProps(
     int Accounts,
     IReadOnlyList<TaskDto> FocusTasks,
     IReadOnlyList<ActivityItemDto> Activity,
-    Deferred<CrmInsightsDto> Insights);
+    Deferred<CrmInsightsDto> Insights,
+    Lazy<CrmForecastDto> Forecast);
 

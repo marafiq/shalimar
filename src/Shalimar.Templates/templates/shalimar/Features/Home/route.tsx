@@ -4,8 +4,8 @@ import { Suspense, useEffect, useMemo, useState } from 'react'
 import { useStore } from '@tanstack/react-store'
 import { crmStore, ensureAccounts, ensureTasks, ensureUsers, refreshActivity } from '../Crm/store'
 import { PageSkeleton } from '../App/ui/Skeletons'
-import { useDeferred } from '@shalimar/runtime'
-import type { CrmInsightsDto, DashboardProps } from '@generated/shalimar-types.g'
+import { useDeferred, useLazy } from '@shalimar/runtime'
+import type { CrmForecastDto, CrmInsightsDto, DashboardProps } from '@generated/shalimar-types.g'
 
 export const Route = createFileRoute('/')({
     validateSearch: (search: Record<string, unknown>) => ({
@@ -135,6 +135,23 @@ function HomeRoute() {
                         </CardPreview>
                     </Card>
                 </div>
+
+                <div className="mt-4">
+                    <Card>
+                        <CardPreview>
+                            <div className="p-5">
+                                <div className="flex items-end justify-between gap-3">
+                                    <Heading level={3}>Pipeline forecast</Heading>
+                                    <div className="text-xs text-zinc-500 dark:text-zinc-400">Lazy</div>
+                                </div>
+
+                                <div className="mt-3">
+                                    <ForecastPanel href={props.forecast.href} />
+                                </div>
+                            </div>
+                        </CardPreview>
+                    </Card>
+                </div>
             </aside>
         </div>
     )
@@ -201,6 +218,94 @@ function InsightsSkeleton() {
                 <div className="mt-2 h-3 w-[85%] rounded bg-zinc-200 dark:bg-zinc-800" />
                 <div className="mt-2 h-3 w-[72%] rounded bg-zinc-200 dark:bg-zinc-800" />
                 <div className="mt-2 h-3 w-[64%] rounded bg-zinc-200 dark:bg-zinc-800" />
+            </div>
+        </div>
+    )
+}
+
+function ForecastPanel(props: { href: string }) {
+    const { status, data, error, load, reset } = useLazy<CrmForecastDto>({ href: props.href })
+
+    if (status === 'idle') {
+        return (
+            <div className="space-y-3 text-sm">
+                <div className="text-sm text-zinc-600 dark:text-zinc-300">
+                    Load forecast only when needed (agent + human intent).
+                </div>
+                <div className="flex flex-wrap gap-2">
+                    <Button onPress={() => void load()}>Load forecast</Button>
+                </div>
+            </div>
+        )
+    }
+
+    if (status === 'pending') {
+        return <ForecastSkeleton />
+    }
+
+    if (status === 'rejected') {
+        return (
+            <div className="space-y-3 text-sm">
+                <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-red-800 dark:text-red-200">
+                    Failed to load forecast.
+                </div>
+                <div className="text-xs opacity-70">{String(error)}</div>
+                <div className="flex gap-2">
+                    <Button onPress={() => void load()}>Retry</Button>
+                    <Button isQuiet onPress={reset}>
+                        Reset
+                    </Button>
+                </div>
+            </div>
+        )
+    }
+
+    return (
+        <div className="space-y-3 text-sm">
+            <div className="rounded-xl border border-zinc-200 bg-white p-3 shadow-sm dark:border-zinc-800 dark:bg-zinc-950/40">
+                <div className="text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">Summary</div>
+                <div className="mt-1">{data?.summary}</div>
+            </div>
+            <div className="rounded-xl border border-zinc-200 bg-white p-3 shadow-sm dark:border-zinc-800 dark:bg-zinc-950/40">
+                <div className="text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">Drivers</div>
+                <ul className="mt-2 list-disc space-y-1 pl-5">
+                    {(data?.drivers ?? []).map((d) => (
+                        <li key={d}>{d}</li>
+                    ))}
+                </ul>
+            </div>
+            <div className="rounded-xl border border-zinc-200 bg-white p-3 shadow-sm dark:border-zinc-800 dark:bg-zinc-950/40">
+                <div className="text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+                    Recommended plays
+                </div>
+                <ul className="mt-2 list-disc space-y-1 pl-5">
+                    {(data?.recommendedPlays ?? []).map((p) => (
+                        <li key={p}>{p}</li>
+                    ))}
+                </ul>
+            </div>
+            <div className="flex gap-2">
+                <Button isQuiet onPress={reset}>
+                    Clear
+                </Button>
+            </div>
+        </div>
+    )
+}
+
+function ForecastSkeleton() {
+    return (
+        <div className="space-y-3">
+            <div className="rounded-xl border border-zinc-200 bg-white p-3 shadow-sm dark:border-zinc-800 dark:bg-zinc-950/40">
+                <div className="h-3 w-24 rounded bg-zinc-200 dark:bg-zinc-800" />
+                <div className="mt-2 h-4 w-[88%] rounded bg-zinc-200 dark:bg-zinc-800" />
+                <div className="mt-2 h-4 w-[62%] rounded bg-zinc-200 dark:bg-zinc-800" />
+            </div>
+            <div className="rounded-xl border border-zinc-200 bg-white p-3 shadow-sm dark:border-zinc-800 dark:bg-zinc-950/40">
+                <div className="h-3 w-20 rounded bg-zinc-200 dark:bg-zinc-800" />
+                <div className="mt-2 h-3 w-[80%] rounded bg-zinc-200 dark:bg-zinc-800" />
+                <div className="mt-2 h-3 w-[72%] rounded bg-zinc-200 dark:bg-zinc-800" />
+                <div className="mt-2 h-3 w-[66%] rounded bg-zinc-200 dark:bg-zinc-800" />
             </div>
         </div>
     )
