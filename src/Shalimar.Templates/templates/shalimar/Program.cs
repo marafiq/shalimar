@@ -23,6 +23,18 @@ builder.Services.AddShalimar<AppContextModel>(options =>
 // Enable Vite proxying + HMR in Development
 builder.Services.AddShalimarVite();
 
+// Deterministic clock for repeatable UI snapshots (tests set SHALIMAR_FIXED_CLOCK=1).
+var fixedClock = Environment.GetEnvironmentVariable("SHALIMAR_FIXED_CLOCK");
+if (string.Equals(fixedClock, "1", StringComparison.OrdinalIgnoreCase) ||
+    string.Equals(fixedClock, "true", StringComparison.OrdinalIgnoreCase))
+{
+    builder.Services.AddSingleton<IClock>(new FixedClock(new DateTimeOffset(2026, 01, 01, 12, 00, 00, TimeSpan.Zero)));
+}
+else
+{
+    builder.Services.AddSingleton<IClock, SystemClock>();
+}
+
 // Server-owned CRM state (in-memory for now; later backed by DB)
 builder.Services.AddSingleton<CrmRepository>();
 builder.Services.AddValidatorsFromAssemblyContaining<CreateTaskRequestValidator>();
@@ -198,12 +210,24 @@ app.MapGet("/crm/tasks/{taskId}/artifacts", (CrmRepository repo, string taskId) 
 app.MapGet("/crm/tasks/{taskId}/decisions", (CrmRepository repo, string taskId) => Results.Ok(repo.Decisions(taskId)));
 app.MapGet("/crm/accounts/{accountId}/contacts", (CrmRepository repo, string accountId) => Results.Ok(repo.ContactsByAccount(accountId)));
 
+// Test-only escape hatch: deterministic state reset for Playwright suites.
+if (!string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("SHALIMAR_TESTING")))
+{
+    app.MapPost("/crm/reset", (CrmRepository repo) =>
+    {
+        repo.Reset();
+        return Results.Ok(new { ok = true });
+    });
+}
+
 app.MapPost("/crm/tasks", async (CrmRepository repo, IValidator<CreateTaskRequest> v, CreateTaskRequest req) =>
 {
     var result = await v.ValidateAsync(req);
     if (!result.IsValid) return Results.ValidationProblem(ToValidationProblem(result));
     return Results.Ok(repo.CreateTask(req));
-});
+})
+    .Invalidates<DashboardProps>()
+    .AsMutation<CreateTaskRequest, TaskDto>();
 
 app.MapPatch("/crm/tasks/{taskId}", async (CrmRepository repo, IValidator<UpdateTaskRequest> v, string taskId, UpdateTaskRequest req) =>
 {

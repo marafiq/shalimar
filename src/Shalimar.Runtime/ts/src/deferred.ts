@@ -79,3 +79,12 @@ export function clearDeferredCache() {
     deferredStore.setState({})
 }
 
+export function invalidateDeferred(href: string) {
+    deferredStore.setState((s) => {
+        if (!(href in s)) return s
+        const next = { ...s }
+        delete next[href]
+        return next
+    })
+}
+

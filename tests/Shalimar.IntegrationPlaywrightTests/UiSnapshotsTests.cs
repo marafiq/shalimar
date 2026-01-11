@@ -67,6 +67,7 @@ public class UiSnapshotsTests(IntegrationAppFixture fixture)
         var (context, page, diag) = await fixture.NewPageAsync(nameof(Notifications_Panel_Open));
         try
         {
+            await fixture.ResetCrmAsync();
             await page.GotoAsync(fixture.BaseUrl);
             await page.WaitForLoadStateAsync(LoadState.NetworkIdle);
             await page.GetByTestId("top-notifications").ClickAsync();
@@ -147,6 +148,7 @@ public class UiSnapshotsTests(IntegrationAppFixture fixture)
         var (context, page, diag) = await fixture.NewPageAsync(nameof(Dashboard_Sse_Started));
         try
         {
+            await fixture.ResetCrmAsync();
             await page.GotoAsync(fixture.BaseUrl);
             await page.WaitForLoadStateAsync(LoadState.NetworkIdle);
             await page.GetByTestId("sse-start").ClickAsync();
@@ -172,6 +174,7 @@ public class UiSnapshotsTests(IntegrationAppFixture fixture)
         var (context, page, diag) = await fixture.NewPageAsync(nameof(Dashboard_Streamed_Completed));
         try
         {
+            await fixture.ResetCrmAsync();
             await page.GotoAsync(fixture.BaseUrl);
             await page.WaitForLoadStateAsync(LoadState.NetworkIdle);
             await page.GetByTestId("streamed-start").ClickAsync();
@@ -197,6 +200,7 @@ public class UiSnapshotsTests(IntegrationAppFixture fixture)
         var (context, page, diag) = await fixture.NewPageAsync(nameof(Dashboard_Lazy_Loaded));
         try
         {
+            await fixture.ResetCrmAsync();
             await page.GotoAsync(fixture.BaseUrl);
             await page.WaitForLoadStateAsync(LoadState.NetworkIdle);
             await page.GetByRole(AriaRole.Button, new() { Name = "Load forecast" }).ClickAsync();
@@ -215,11 +219,42 @@ public class UiSnapshotsTests(IntegrationAppFixture fixture)
         }
     }
 
+    [Fact]
+    public async Task Dashboard_Mutation_Invalidates_Deferred()
+    {
+        var (context, page, diag) = await fixture.NewPageAsync(nameof(Dashboard_Mutation_Invalidates_Deferred));
+        try
+        {
+            await fixture.ResetCrmAsync();
+            await page.GotoAsync(fixture.BaseUrl);
+            await page.WaitForLoadStateAsync(LoadState.NetworkIdle);
+
+            var before = await page.GetByTestId("insights-summary").InnerTextAsync();
+            await page.GetByTestId("dashboard-create-task").ClickAsync();
+            await Assertions.Expect(page.GetByTestId("insights-summary")).Not.ToHaveTextAsync(before);
+            var after = await page.GetByTestId("insights-summary").InnerTextAsync();
+
+            Assert.NotEqual(before, after);
+            await SnapshotAssertions.AssertMatchesAsync(page, diag, nameof(Dashboard_Mutation_Invalidates_Deferred), "dashboard-mutation.png");
+        }
+        catch (Exception ex)
+        {
+            await diag.CaptureFailureAsync(page, ex);
+            throw;
+        }
+        finally
+        {
+            await diag.FlushAsync();
+            await context.DisposeAsync();
+        }
+    }
+
     private async Task SnapshotRouteAsync(string testName, string path, string snapshotFile)
     {
         var (context, page, diag) = await fixture.NewPageAsync(testName);
         try
         {
+            await fixture.ResetCrmAsync();
             await page.GotoAsync($"{fixture.BaseUrl}{path}");
             await page.WaitForLoadStateAsync(LoadState.NetworkIdle);
             await SnapshotAssertions.AssertMatchesAsync(page, diag, testName, snapshotFile);

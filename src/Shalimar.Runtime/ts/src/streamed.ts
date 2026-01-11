@@ -133,3 +133,15 @@ export function clearStreamedCache() {
     streamedStore.setState({})
 }
 
+export function invalidateStreamed(href: string) {
+    const entry = streamedStore.state[href]
+    entry?.controller?.abort()
+
+    streamedStore.setState((s) => {
+        if (!(href in s)) return s
+        const next = { ...s }
+        delete next[href]
+        return next
+    })
+}
+

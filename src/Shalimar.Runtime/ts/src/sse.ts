@@ -112,3 +112,15 @@ export function clearSseCache() {
     sseStore.setState({})
 }
 
+export function invalidateSse(href: string) {
+    const entry = sseStore.state[href]
+    if (entry?.es) entry.es.close()
+
+    sseStore.setState((s) => {
+        if (!(href in s)) return s
+        const next = { ...s }
+        delete next[href]
+        return next
+    })
+}
+

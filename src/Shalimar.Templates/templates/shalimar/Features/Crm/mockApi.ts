@@ -1,4 +1,6 @@
 import type { Account, ActivityItem, Contact, Epic, Id, Task, TaskActor, TaskArtifact, TaskDecision, TaskMessage, TaskStatus, User } from './types'
+import { mutateCrmTasks } from '@generated/shalimar-mutations.g'
+import type { CreateTaskRequest, TaskDto } from '@generated/shalimar-types.g'
 
 // Shalimar principle: server is truth. This module calls feature endpoints (no /api).
 
@@ -128,20 +130,62 @@ export async function updateTask(
 
 export async function createTask(title: string, accountId?: Id): Promise<Task> {
     invalidateSnapshot()
-    return await getJson<Task>('/crm/tasks', {
-        method: 'POST',
-        body: JSON.stringify({
-            title,
-            priority: 'medium',
-            epicId: null,
-            accountId: accountId ?? null,
-            assigneeId: null,
-            collaboratorIds: [],
-            dueAt: null,
-            estimateMinutes: null,
-            tags: [],
-        }),
-    })
+
+    const req: CreateTaskRequest = {
+        title,
+        priority: 'medium',
+        epicId: null,
+        accountId: accountId ?? null,
+        assigneeId: null,
+        collaboratorIds: [],
+        dueAt: null,
+        estimateMinutes: null,
+        tags: [],
+    }
+
+    const dto = await mutateCrmTasks(req)
+    return toTask(dto)
+}
+
+function toTask(dto: TaskDto): Task {
+    return {
+        id: dto.id,
+        title: dto.title,
+        status: coerceTaskStatus(dto.status),
+        priority: coerceTaskPriority(dto.priority),
+        epicId: dto.epicId ?? undefined,
+        accountId: dto.accountId ?? undefined,
+        assigneeId: dto.assigneeId ?? undefined,
+        collaboratorIds: dto.collaboratorIds,
+        dueAt: dto.dueAt ?? undefined,
+        estimateMinutes: dto.estimateMinutes ?? undefined,
+        tags: dto.tags,
+        updatedAt: dto.updatedAt,
+    }
+}
+
+function coerceTaskStatus(v: string): TaskStatus {
+    switch (v) {
+        case 'backlog':
+        case 'todo':
+        case 'in_progress':
+        case 'blocked':
+        case 'done':
+            return v
+        default:
+            return 'todo'
+    }
+}
+
+function coerceTaskPriority(v: string): Task['priority'] {
+    switch (v) {
+        case 'low':
+        case 'medium':
+        case 'high':
+            return v
+        default:
+            return 'medium'
+    }
 }
 
 export async function listTaskMessages(taskId: Id): Promise<TaskMessage[]> {

@@ -2,7 +2,7 @@ import { createFileRoute, Link } from '@tanstack/react-router'
 import { Button, Card, CardPreview, Heading, Text, TextField } from '@react-spectrum/s2'
 import { Suspense, useEffect, useMemo, useState } from 'react'
 import { useStore } from '@tanstack/react-store'
-import { crmStore, ensureAccounts, ensureTasks, ensureUsers, refreshActivity } from '../Crm/store'
+import { createTask, crmStore, ensureAccounts, ensureTasks, ensureUsers, refreshActivity } from '../Crm/store'
 import { PageSkeleton } from '../App/ui/Skeletons'
 import { useDeferred, useLazy, useSse, useStream } from '@shalimar/runtime'
 import type { CrmActivityExportRowDto, CrmForecastDto, CrmInsightsDto, CrmSseEventDto, DashboardProps } from '@generated/shalimar-types.g'
@@ -23,6 +23,7 @@ function HomeRoute() {
     const state = useStore(crmStore)
     const { skeleton } = Route.useSearch()
     const [query, setQuery] = useState('')
+    const [creating, setCreating] = useState(false)
 
     if (skeleton) return <PageSkeleton />
 
@@ -71,6 +72,16 @@ function HomeRoute() {
                             />
                         </div>
                         <div className="flex gap-2">
+                            <Button
+                                data-testid="dashboard-create-task"
+                                isDisabled={creating}
+                                onPress={() => {
+                                    setCreating(true)
+                                    void createTask('Follow up with Contoso').finally(() => setCreating(false))
+                                }}
+                            >
+                                {creating ? 'Creating…' : 'New task'}
+                            </Button>
                             <Button elementType={Link as any} to="/tasks">
                                 Go to tasks
                             </Button>
@@ -215,7 +226,9 @@ function InsightsLoaded(props: { href: string }) {
         <div className="space-y-3 text-sm">
             <div className="rounded-xl border border-zinc-200 bg-white p-3 shadow-sm dark:border-zinc-800 dark:bg-zinc-950/40">
                 <div className="text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">Summary</div>
-                <div className="mt-1">{data.summary}</div>
+                <div className="mt-1" data-testid="insights-summary">
+                    {data.summary}
+                </div>
             </div>
             <div className="grid gap-3">
                 <div className="rounded-xl border border-zinc-200 bg-white p-3 shadow-sm dark:border-zinc-800 dark:bg-zinc-950/40">
@@ -241,7 +254,7 @@ function InsightsLoaded(props: { href: string }) {
 
 function InsightsSkeleton() {
     return (
-        <div className="space-y-3">
+        <div className="space-y-3" data-testid="insights-skeleton">
             <div className="rounded-xl border border-zinc-200 bg-white p-3 shadow-sm dark:border-zinc-800 dark:bg-zinc-950/40">
                 <div className="h-3 w-24 rounded bg-zinc-200 dark:bg-zinc-800" />
                 <div className="mt-2 h-4 w-[90%] rounded bg-zinc-200 dark:bg-zinc-800" />

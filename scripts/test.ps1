@@ -92,6 +92,8 @@ if ($runIntegration) {
     Push-Location $AppDir
     $env:ASPNETCORE_URLS = "http://localhost:$effectivePort"
     $env:ASPNETCORE_ENVIRONMENT = "Production"
+    $env:SHALIMAR_TESTING = "1"
+    $env:SHALIMAR_FIXED_CLOCK = "1"
 
     $logFile = Join-Path $AppDir "app.log"
     $tfm = "net10.0"

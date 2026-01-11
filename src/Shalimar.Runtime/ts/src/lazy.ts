@@ -71,3 +71,12 @@ export function clearLazyCache() {
     lazyStore.setState({})
 }
 
+export function invalidateLazy(href: string) {
+    lazyStore.setState((s) => {
+        if (!(href in s)) return s
+        const next = { ...s }
+        delete next[href]
+        return next
+    })
+}
+

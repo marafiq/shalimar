@@ -5,6 +5,7 @@ namespace ShalimarApp.Features.Crm;
 public sealed class CrmRepository
 {
     private readonly object _gate = new();
+    private readonly IClock _clock;
     private readonly List<ActivityItemDto> _activity = new();
     private readonly List<UserDto> _users = new();
     private readonly List<AccountDto> _accounts = new();
@@ -15,8 +16,9 @@ public sealed class CrmRepository
     private readonly ConcurrentDictionary<string, List<TaskArtifactDto>> _artifactsByTask = new();
     private readonly ConcurrentDictionary<string, List<TaskDecisionDto>> _decisionsByTask = new();
 
-    public CrmRepository()
+    public CrmRepository(IClock clock)
     {
+        _clock = clock;
         Seed();
     }
 
@@ -47,13 +49,31 @@ public sealed class CrmRepository
         }
     }
 
+    public void Reset()
+    {
+        lock (_gate)
+        {
+            _activity.Clear();
+            _users.Clear();
+            _accounts.Clear();
+            _contacts.Clear();
+            _epics.Clear();
+            _tasks.Clear();
+            _messagesByTask.Clear();
+            _artifactsByTask.Clear();
+            _decisionsByTask.Clear();
+
+            Seed();
+        }
+    }
+
     public CrmInsightsDto Insights()
     {
         lock (_gate)
         {
             var open = _tasks.Count(t => t.Status != "done");
             var blocked = _tasks.Count(t => t.Status == "blocked");
-            var overdue = _tasks.Count(t => t.DueAt.HasValue && t.DueAt.Value < DateTimeOffset.UtcNow && t.Status != "done");
+            var overdue = _tasks.Count(t => t.DueAt.HasValue && t.DueAt.Value < _clock.UtcNow && t.Status != "done");
 
             var summary = blocked > 0
                 ? $"Focus: unblock {blocked} task(s). {open} open across {_epics.Count} epic(s)."
@@ -115,7 +135,7 @@ public sealed class CrmRepository
 
     public TaskDto CreateTask(CreateTaskRequest req)
     {
-        var now = DateTimeOffset.UtcNow;
+        var now = _clock.UtcNow;
         lock (_gate)
         {
             var t = new TaskDto(
@@ -167,7 +187,7 @@ public sealed class CrmRepository
                 CollaboratorIds = req.CollaboratorIds ?? current.CollaboratorIds,
                 DueAt = req.DueAtSet ? req.DueAt : current.DueAt,
                 EstimateMinutes = req.EstimateMinutesSet ? req.EstimateMinutes : current.EstimateMinutes,
-                UpdatedAt = DateTimeOffset.UtcNow
+                UpdatedAt = _clock.UtcNow
             };
 
             _tasks[i] = updated;
@@ -188,7 +208,7 @@ public sealed class CrmRepository
             {
                 Status = req.Status ?? current.Status,
                 EpicId = req.EpicIdSet ? req.EpicId : current.EpicId,
-                UpdatedAt = DateTimeOffset.UtcNow
+                UpdatedAt = _clock.UtcNow
             };
 
             _tasks[i] = updated;
@@ -199,7 +219,7 @@ public sealed class CrmRepository
 
     public TaskMessageDto PostMessage(string taskId, PostMessageRequest req)
     {
-        var now = DateTimeOffset.UtcNow;
+        var now = _clock.UtcNow;
         var msg = new TaskMessageDto(
             Id: MakeId("m"),
             TaskId: taskId,
@@ -219,7 +239,7 @@ public sealed class CrmRepository
 
     public TaskArtifactDto AddArtifact(string taskId, AddArtifactRequest req)
     {
-        var now = DateTimeOffset.UtcNow;
+        var now = _clock.UtcNow;
         var a = new TaskArtifactDto(
             Id: MakeId("art"),
             TaskId: taskId,
@@ -240,7 +260,7 @@ public sealed class CrmRepository
 
     public TaskDecisionDto AddDecision(string taskId, AddDecisionRequest req)
     {
-        var now = DateTimeOffset.UtcNow;
+        var now = _clock.UtcNow;
         var d = new TaskDecisionDto(
             Id: MakeId("dec"),
             TaskId: taskId,
@@ -262,7 +282,7 @@ public sealed class CrmRepository
 
     private void PushActivity(string summary)
     {
-        _activity.Insert(0, new ActivityItemDto(MakeId("act"), DateTimeOffset.UtcNow, "task", summary));
+        _activity.Insert(0, new ActivityItemDto(MakeId("act"), _clock.UtcNow, "task", summary));
         if (_activity.Count > 50) _activity.RemoveRange(50, _activity.Count - 50);
     }
 
@@ -271,7 +291,7 @@ public sealed class CrmRepository
 
     private void Seed()
     {
-        var now = DateTimeOffset.UtcNow;
+        var now = _clock.UtcNow;
         _users.AddRange([
             new UserDto("u_1", "Ava Chen", "ava@shalimar.local"),
             new UserDto("u_2", "Noah Patel", "noah@shalimar.local"),

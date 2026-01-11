@@ -1,4 +1,5 @@
 using Microsoft.Playwright;
+using System.Net;
 using Xunit;
 
 namespace Shalimar.IntegrationPlaywrightTests;
@@ -62,6 +63,18 @@ public class IntegrationAppFixture : IAsyncLifetime
     {
         using var client = new HttpClient { BaseAddress = new Uri(BaseUrl) };
         return await client.GetStringAsync(path);
+    }
+
+    public async Task ResetCrmAsync()
+    {
+        using var client = new HttpClient { BaseAddress = new Uri(BaseUrl) };
+        var res = await client.PostAsync("/crm/reset", content: null);
+
+        // Reset endpoint is only available when SHALIMAR_TESTING=1 on the server.
+        if (res.StatusCode == HttpStatusCode.NotFound)
+            return;
+
+        res.EnsureSuccessStatusCode();
     }
 
     public async Task DisposeAsync()
