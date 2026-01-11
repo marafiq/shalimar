@@ -54,7 +54,8 @@ app.MapGet("/", async (HttpContext http, CrmRepository repo) =>
         Activity: snapshot.Activity.Take(12).ToList(),
         Insights: Shalimar.Generated.DeferredRefs.CrmInsights(),
         Forecast: Shalimar.Generated.LazyRefs.CrmForecast(),
-        ActivityStream: Shalimar.Generated.StreamRefs.CrmActivityStream());
+        ActivitySse: Shalimar.Generated.SseRefs.CrmActivitySse(),
+        ActivityExport: Shalimar.Generated.StreamRefs.CrmActivityExport());
     return await http.RenderComponent(MakeContext(app), props, "Shalimar App");
 }).AsComponent<DashboardProps>();
 
@@ -66,15 +67,15 @@ app.MapGet("/crm/insights", (CrmRepository repo) => repo.Insights())
 app.MapGet("/crm/forecast", (CrmRepository repo) => repo.Forecast())
     .AsLazy<CrmForecastDto>();
 
-// Streamed mode: typed SSE subscription.
-app.MapGet("/crm/activity/stream", async (HttpContext http, CrmRepository repo, CancellationToken ct) =>
+// SSE subscription mode (realtime / long-lived). Separate from Streamed mode.
+app.MapGet("/crm/activity/sse", async (HttpContext http, CrmRepository repo, CancellationToken ct) =>
 {
     http.Response.Headers.CacheControl = "no-cache";
     http.Response.Headers.Connection = "keep-alive";
     http.Response.Headers.ContentType = "text/event-stream";
 
     // Deterministic first event for tests + UX.
-    var first = new CrmStreamEventDto(
+    var first = new CrmSseEventDto(
         Type: "activity",
         Activity: repo.Activity().FirstOrDefault() ?? new ActivityItemDto("act_boot", DateTimeOffset.UtcNow, "system", "Stream connected."),
         Ts: DateTimeOffset.UtcNow);
@@ -85,7 +86,7 @@ app.MapGet("/crm/activity/stream", async (HttpContext http, CrmRepository repo, 
     for (var i = 0; i < 2 && !ct.IsCancellationRequested; i++)
     {
         await Task.Delay(250, ct);
-        var tick = new CrmStreamEventDto(
+        var tick = new CrmSseEventDto(
             Type: "tick",
             Activity: new ActivityItemDto($"act_tick_{i + 1}", DateTimeOffset.UtcNow, "system", $"Stream tick {i + 1}"),
             Ts: DateTimeOffset.UtcNow);
@@ -101,7 +102,23 @@ app.MapGet("/crm/activity/stream", async (HttpContext http, CrmRepository repo, 
     }
 
     return Results.Empty;
-}).AsStream<CrmStreamEventDto>();
+}).AsSse<CrmSseEventDto>();
+
+// Streamed mode (finite): NDJSON over HTTP using an IAsyncEnumerable-like writer.
+app.MapGet("/crm/activity/export", async (HttpContext http, CrmRepository repo, CancellationToken ct) =>
+{
+    http.Response.Headers.CacheControl = "no-cache";
+    http.Response.Headers.ContentType = "application/x-ndjson";
+
+    var items = repo.Activity().Take(20).ToList();
+    for (var i = 0; i < items.Count && !ct.IsCancellationRequested; i++)
+    {
+        await WriteNdjsonAsync(http, new CrmActivityExportRowDto(i + 1, items[i]), ct);
+        await Task.Delay(40, ct); // simulate large export work
+    }
+
+    return Results.Empty;
+}).AsStream<CrmActivityExportRowDto>();
 
 app.MapGet("/tasks", async (HttpContext http, CrmRepository repo) =>
 {
@@ -120,6 +137,18 @@ static async Task WriteSseAsync<T>(HttpContext http, T data, CancellationToken c
     await http.Response.WriteAsync("data: ", ct);
     await http.Response.WriteAsync(json, ct);
     await http.Response.WriteAsync("\n\n", ct);
+    await http.Response.Body.FlushAsync(ct);
+}
+
+static async Task WriteNdjsonAsync<T>(HttpContext http, T data, CancellationToken ct)
+{
+    var json = System.Text.Json.JsonSerializer.Serialize(data, new System.Text.Json.JsonSerializerOptions
+    {
+        PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase
+    });
+
+    await http.Response.WriteAsync(json, ct);
+    await http.Response.WriteAsync("\n", ct);
     await http.Response.Body.FlushAsync(ct);
 }
 

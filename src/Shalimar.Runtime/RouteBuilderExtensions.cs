@@ -49,6 +49,16 @@ public static class RouteBuilderExtensions
     }
 
     /// <summary>
+    /// Marks this endpoint as an SSE subscription (realtime / long-lived).
+    /// SSE is separate from Streamed mode.
+    /// </summary>
+    public static RouteHandlerBuilder AsSse<T>(this RouteHandlerBuilder builder)
+    {
+        builder.WithMetadata(new ShalimarSseMetadata(typeof(T)));
+        return builder;
+    }
+
+    /// <summary>
     /// Associates a JSX file with this component route.
     /// </summary>
     public static RouteHandlerBuilder WithJsxFile(this RouteHandlerBuilder builder, string path)
@@ -82,3 +92,8 @@ public record ShalimarLazyMetadata(Type ResultType);
 /// Metadata indicating this endpoint is a Shalimar stream (SSE) subscription.
 /// </summary>
 public record ShalimarStreamMetadata(Type EventType);
+
+/// <summary>
+/// Metadata indicating this endpoint is a Shalimar SSE subscription.
+/// </summary>
+public record ShalimarSseMetadata(Type EventType);

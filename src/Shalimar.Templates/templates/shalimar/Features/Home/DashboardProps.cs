@@ -13,5 +13,6 @@ public sealed record DashboardProps(
     IReadOnlyList<ActivityItemDto> Activity,
     Deferred<CrmInsightsDto> Insights,
     Lazy<CrmForecastDto> Forecast,
-    Stream<CrmStreamEventDto> ActivityStream);
+    Sse<CrmSseEventDto> ActivitySse,
+    Stream<CrmActivityExportRowDto> ActivityExport);
 

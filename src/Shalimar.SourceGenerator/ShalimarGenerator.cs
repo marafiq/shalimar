@@ -50,12 +50,21 @@ public class ShalimarGenerator : IIncrementalGenerator
             .Where(static info => info is not null)
             .Collect();
 
+        // Find all invocations of AsSse<T>()
+        var sseCalls = context.SyntaxProvider
+            .CreateSyntaxProvider(
+                predicate: static (node, _) => IsAsSseCall(node),
+                transform: static (ctx, _) => GetSseInfo(ctx))
+            .Where(static info => info is not null)
+            .Collect();
+
         // Combine with compilation
         var compilationAndComponents = context.CompilationProvider
             .Combine(componentCalls)
             .Combine(deferredCalls)
             .Combine(lazyCalls)
-            .Combine(streamCalls);
+            .Combine(streamCalls)
+            .Combine(sseCalls);
 
         // Generate output
         context.RegisterSourceOutput(compilationAndComponents, Execute);
@@ -87,6 +96,13 @@ public class ShalimarGenerator : IIncrementalGenerator
         return node is InvocationExpressionSyntax invocation &&
                invocation.Expression is MemberAccessExpressionSyntax memberAccess &&
                memberAccess.Name.Identifier.Text == "AsStream";
+    }
+
+    private static bool IsAsSseCall(SyntaxNode node)
+    {
+        return node is InvocationExpressionSyntax invocation &&
+               invocation.Expression is MemberAccessExpressionSyntax memberAccess &&
+               memberAccess.Name.Identifier.Text == "AsSse";
     }
 
     private static ComponentInfo? GetComponentInfo(GeneratorSyntaxContext context)
@@ -175,6 +191,26 @@ public class ShalimarGenerator : IIncrementalGenerator
         return new StreamInfo(typeSymbol, routePath!, method);
     }
 
+    private static SseInfo? GetSseInfo(GeneratorSyntaxContext context)
+    {
+        var invocation = (InvocationExpressionSyntax)context.Node;
+        var memberAccess = (MemberAccessExpressionSyntax)invocation.Expression;
+
+        if (memberAccess.Name is not GenericNameSyntax genericName ||
+            genericName.TypeArgumentList.Arguments.Count != 1)
+            return null;
+
+        var typeArg = genericName.TypeArgumentList.Arguments[0];
+        var typeSymbol = context.SemanticModel.GetTypeInfo(typeArg).Type;
+        if (typeSymbol is null) return null;
+
+        var routePath = FindRoutePath(invocation);
+        if (string.IsNullOrWhiteSpace(routePath)) return null;
+
+        var method = MakeRefMethodName(routePath!);
+        return new SseInfo(typeSymbol, routePath!, method);
+    }
+
     private static string? FindRoutePath(InvocationExpressionSyntax invocation)
     {
         // `invocation` is the `.AsComponent<T>()` call. The route path lives on the
@@ -244,15 +280,15 @@ public class ShalimarGenerator : IIncrementalGenerator
 
     private static void Execute(
         SourceProductionContext context,
-        ((((Compilation Compilation, ImmutableArray<ComponentInfo?> Components) Left, ImmutableArray<DeferredInfo?> Deferred) Mid, ImmutableArray<LazyInfo?> Lazy) Left2, ImmutableArray<StreamInfo?> Stream) source)
+        (((((Compilation Compilation, ImmutableArray<ComponentInfo?> Components) Left, ImmutableArray<DeferredInfo?> Deferred) Mid, ImmutableArray<LazyInfo?> Lazy) Left2, ImmutableArray<StreamInfo?> Stream) Left3, ImmutableArray<SseInfo?> Sse) source)
     {
-        var compilation = source.Left2.Mid.Left.Compilation;
-        var components = source.Left2.Mid.Left.Components
+        var compilation = source.Left3.Left2.Mid.Left.Compilation;
+        var components = source.Left3.Left2.Mid.Left.Components
             .Where(c => c is not null)
             .Cast<ComponentInfo>()
             .ToList();
 
-        var deferred = source.Left2.Mid.Deferred
+        var deferred = source.Left3.Left2.Mid.Deferred
             .Where(d => d is not null)
             .Cast<DeferredInfo>()
             .GroupBy(d => d.Path, StringComparer.Ordinal)
@@ -260,7 +296,7 @@ public class ShalimarGenerator : IIncrementalGenerator
             .OrderBy(d => d.Path, StringComparer.Ordinal)
             .ToList();
 
-        var lazy = source.Left2.Lazy
+        var lazy = source.Left3.Left2.Lazy
             .Where(d => d is not null)
             .Cast<LazyInfo>()
             .GroupBy(d => d.Path, StringComparer.Ordinal)
@@ -268,9 +304,17 @@ public class ShalimarGenerator : IIncrementalGenerator
             .OrderBy(d => d.Path, StringComparer.Ordinal)
             .ToList();
 
-        var stream = source.Stream
+        var stream = source.Left3.Stream
             .Where(d => d is not null)
             .Cast<StreamInfo>()
+            .GroupBy(d => d.Path, StringComparer.Ordinal)
+            .Select(g => g.First())
+            .OrderBy(d => d.Path, StringComparer.Ordinal)
+            .ToList();
+
+        var sse = source.Sse
+            .Where(d => d is not null)
+            .Cast<SseInfo>()
             .GroupBy(d => d.Path, StringComparer.Ordinal)
             .Select(g => g.First())
             .OrderBy(d => d.Path, StringComparer.Ordinal)
@@ -281,6 +325,7 @@ public class ShalimarGenerator : IIncrementalGenerator
         GenerateCSharpDeferredRefs(context, deferred);
         GenerateCSharpLazyRefs(context, lazy);
         GenerateCSharpStreamRefs(context, stream);
+        GenerateCSharpSseRefs(context, sse);
 
         // Generate TypeScript embedded in C# files (for MSBuild task to extract)
         GenerateTypeScriptTypesEmbedded(context, compilation, components);
@@ -379,6 +424,28 @@ public class ShalimarGenerator : IIncrementalGenerator
 
         sb.AppendLine("}");
         context.AddSource("StreamRefs.g.cs", SourceText.From(sb.ToString(), Encoding.UTF8));
+    }
+
+    private static void GenerateCSharpSseRefs(SourceProductionContext context, List<SseInfo> sse)
+    {
+        if (sse.Count == 0)
+            return;
+
+        var sb = new StringBuilder();
+        sb.AppendLine("// <auto-generated/>");
+        sb.AppendLine("namespace Shalimar.Generated;");
+        sb.AppendLine();
+        sb.AppendLine("public static class SseRefs");
+        sb.AppendLine("{");
+
+        foreach (var d in sse)
+        {
+            var ts = d.EventType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+            sb.AppendLine($"    public static global::Shalimar.Sse<{ts}> {d.RefMethodName}() => new global::Shalimar.Sse<{ts}>(\"{d.Path}\");");
+        }
+
+        sb.AppendLine("}");
+        context.AddSource("SseRefs.g.cs", SourceText.From(sb.ToString(), Encoding.UTF8));
     }
 
     private static void GenerateTypeScriptTypesEmbedded(
@@ -982,6 +1049,20 @@ public class ShalimarGenerator : IIncrementalGenerator
         public string RefMethodName { get; }
 
         public StreamInfo(ITypeSymbol eventType, string path, string refMethodName)
+        {
+            EventType = eventType;
+            Path = path;
+            RefMethodName = refMethodName;
+        }
+    }
+
+    private sealed class SseInfo
+    {
+        public ITypeSymbol EventType { get; }
+        public string Path { get; }
+        public string RefMethodName { get; }
+
+        public SseInfo(ITypeSymbol eventType, string path, string refMethodName)
         {
             EventType = eventType;
             Path = path;

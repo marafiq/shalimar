@@ -261,4 +261,85 @@ public sealed record ActivityEvent(string Kind);
         Assert.Contains("export interface Stream<T>", shalimarTypes, StringComparison.Ordinal);
         Assert.Contains("activityStream: Stream<ActivityEvent>", shalimarTypes, StringComparison.Ordinal);
     }
+
+    [Fact]
+    public void Generator_Emits_SseRefs_And_Sse_Generic_Type()
+    {
+        var source = """
+using System;
+
+namespace Shalimar
+{
+    public sealed record Sse<T>(string Href);
+    public static class RouteBuilderExtensions
+    {
+        public static RouteHandlerBuilder AsComponent<TProps>(this RouteHandlerBuilder builder) => builder;
+        public static RouteHandlerBuilder AsSse<T>(this RouteHandlerBuilder builder) => builder;
+    }
+}
+
+public sealed class RouteHandlerBuilder
+{
+    public RouteHandlerBuilder WithName(string name) => this;
+}
+
+public sealed class WebApplication
+{
+    public RouteHandlerBuilder MapGet(string pattern, Delegate handler) => new();
+}
+
+namespace TestApp;
+
+public static class App
+{
+    public static void Configure(WebApplication app)
+    {
+        app.MapGet("/", () => new DashboardProps(new Shalimar.Sse<ActivityEvent>("/crm/activity/sse")))
+            .AsComponent<DashboardProps>();
+
+        app.MapGet("/crm/activity/sse", () => new ActivityEvent("tick"))
+            .AsSse<ActivityEvent>();
+    }
+}
+
+public sealed record DashboardProps(Shalimar.Sse<ActivityEvent> ActivitySse);
+
+public sealed record ActivityEvent(string Kind);
+""";
+
+        var syntaxTree = CSharpSyntaxTree.ParseText(source, CSharpParseOptions.Default);
+
+        var references = new[]
+        {
+            MetadataReference.CreateFromFile(typeof(object).Assembly.Location),
+            MetadataReference.CreateFromFile(typeof(Enumerable).Assembly.Location),
+        };
+
+        var compilation = CSharpCompilation.Create(
+            assemblyName: "TestApp",
+            syntaxTrees: new[] { syntaxTree },
+            references: references,
+            options: new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary, nullableContextOptions: NullableContextOptions.Enable));
+
+        var generator = new ShalimarGenerator();
+        GeneratorDriver driver = CSharpGeneratorDriver.Create(generator);
+        driver = driver.RunGeneratorsAndUpdateCompilation(compilation, out var outputCompilation, out var diagnostics);
+
+        Assert.Empty(diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error));
+
+        var generated = outputCompilation.SyntaxTrees
+            .Where(t => t != syntaxTree)
+            .Select(t => new
+            {
+                FileName = t.FilePath.Split(new[] { '/', '\\' }, StringSplitOptions.RemoveEmptyEntries).LastOrDefault() ?? "unknown",
+                Text = t.ToString()
+            })
+            .OrderBy(x => x.FileName)
+            .ToImmutableArray();
+
+        Assert.Contains(generated, g => g.Text.Contains("public static class SseRefs", StringComparison.Ordinal));
+        var shalimarTypes = Assert.Single(generated, g => g.Text.Contains("SHALIMAR_TS: shalimar-types.g.ts", StringComparison.Ordinal)).Text;
+        Assert.Contains("export interface Sse<T>", shalimarTypes, StringComparison.Ordinal);
+        Assert.Contains("activitySse: Sse<ActivityEvent>", shalimarTypes, StringComparison.Ordinal);
+    }
 }

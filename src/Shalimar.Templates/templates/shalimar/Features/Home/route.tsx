@@ -4,8 +4,8 @@ import { Suspense, useEffect, useMemo, useState } from 'react'
 import { useStore } from '@tanstack/react-store'
 import { crmStore, ensureAccounts, ensureTasks, ensureUsers, refreshActivity } from '../Crm/store'
 import { PageSkeleton } from '../App/ui/Skeletons'
-import { useDeferred, useLazy, useStream } from '@shalimar/runtime'
-import type { CrmForecastDto, CrmInsightsDto, CrmStreamEventDto, DashboardProps } from '@generated/shalimar-types.g'
+import { useDeferred, useLazy, useSse, useStream } from '@shalimar/runtime'
+import type { CrmActivityExportRowDto, CrmForecastDto, CrmInsightsDto, CrmSseEventDto, DashboardProps } from '@generated/shalimar-types.g'
 
 export const Route = createFileRoute('/')({
     validateSearch: (search: Record<string, unknown>) => ({
@@ -158,12 +158,29 @@ function HomeRoute() {
                         <CardPreview>
                             <div className="p-5">
                                 <div className="flex items-end justify-between gap-3">
-                                    <Heading level={3}>Activity stream</Heading>
+                                    <Heading level={3}>Activity (SSE)</Heading>
+                                    <div className="text-xs text-zinc-500 dark:text-zinc-400">SSE</div>
+                                </div>
+
+                                <div className="mt-3">
+                                    <SsePanel href={props.activitySse.href} />
+                                </div>
+                            </div>
+                        </CardPreview>
+                    </Card>
+                </div>
+
+                <div className="mt-4">
+                    <Card>
+                        <CardPreview>
+                            <div className="p-5">
+                                <div className="flex items-end justify-between gap-3">
+                                    <Heading level={3}>Activity export</Heading>
                                     <div className="text-xs text-zinc-500 dark:text-zinc-400">Streamed</div>
                                 </div>
 
                                 <div className="mt-3">
-                                    <StreamPanel href={props.activityStream.href} />
+                                    <StreamedPanel href={props.activityExport.href} />
                                 </div>
                             </div>
                         </CardPreview>
@@ -328,8 +345,8 @@ function ForecastSkeleton() {
     )
 }
 
-function StreamPanel(props: { href: string }) {
-    const { status, lastEvent, start, stop, reset } = useStream<CrmStreamEventDto>({ href: props.href }, { maxEvents: 12 })
+function SsePanel(props: { href: string }) {
+    const { status, lastEvent, start, stop, reset } = useSse<CrmSseEventDto>({ href: props.href }, { maxEvents: 12 })
 
     const summary =
         lastEvent?.type === 'activity'
@@ -343,12 +360,12 @@ function StreamPanel(props: { href: string }) {
     return (
         <div className="space-y-3 text-sm">
             <div className="flex flex-wrap items-center justify-between gap-2">
-                <div className="text-xs text-zinc-500 dark:text-zinc-400" data-testid="stream-status">
+                <div className="text-xs text-zinc-500 dark:text-zinc-400" data-testid="sse-status">
                     status: {status}
                 </div>
                 <div className="flex flex-wrap gap-2">
-                    <Button data-testid="stream-start" onPress={start} isDisabled={status === 'open' || status === 'connecting'}>
-                        Start stream
+                    <Button data-testid="sse-start" onPress={start} isDisabled={status === 'open' || status === 'connecting'}>
+                        Start SSE
                     </Button>
                     <Button isQuiet onPress={stop} isDisabled={status !== 'open' && status !== 'connecting'}>
                         Stop
@@ -361,14 +378,46 @@ function StreamPanel(props: { href: string }) {
 
             <div
                 className="rounded-xl border border-zinc-200 bg-white p-3 shadow-sm dark:border-zinc-800 dark:bg-zinc-950/40"
-                data-testid="stream-last"
+                data-testid="sse-last"
             >
                 <div className="text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">Last event</div>
                 <div className="mt-1">{summary}</div>
             </div>
 
             <div className="text-xs text-zinc-500 dark:text-zinc-400">
-                Tip: stream is off by default to keep initial render deterministic.
+                Tip: SSE is off by default to keep initial render deterministic.
+            </div>
+        </div>
+    )
+}
+
+function StreamedPanel(props: { href: string }) {
+    const { status, lastItem, start, abort, reset } = useStream<CrmActivityExportRowDto>({ href: props.href }, { maxItems: 50 })
+
+    const last = lastItem ? `#${lastItem.index}: ${lastItem.activity.summary}` : 'No rows yet.'
+
+    return (
+        <div className="space-y-3 text-sm">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="text-xs text-zinc-500 dark:text-zinc-400" data-testid="streamed-status">
+                    status: {status}
+                </div>
+                <div className="flex flex-wrap gap-2">
+                    <Button data-testid="streamed-start" onPress={() => void start()} isDisabled={status === 'streaming'}>
+                        Start export
+                    </Button>
+                    <Button isQuiet onPress={abort} isDisabled={status !== 'streaming'}>
+                        Abort
+                    </Button>
+                    <Button isQuiet onPress={reset}>
+                        Reset
+                    </Button>
+                </div>
+            </div>
+
+            <div className="rounded-xl border border-zinc-200 bg-white p-3 shadow-sm dark:border-zinc-800 dark:bg-zinc-950/40" data-testid="streamed-last">
+                <div className="text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">Last row</div>
+                <div className="mt-1">{last}</div>
             </div>
         </div>
     )

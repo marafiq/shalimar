@@ -1,38 +1,36 @@
 import { Store } from '@tanstack/store'
 import { useSyncExternalStore } from 'react'
 
-type StreamStatus = 'idle' | 'connecting' | 'open' | 'error' | 'closed'
+type SseStatus = 'idle' | 'connecting' | 'open' | 'error' | 'closed'
 
-type StreamEntry = {
-    status: StreamStatus
+type SseEntry = {
+    status: SseStatus
     events: unknown[]
     lastEvent: unknown | undefined
     error: unknown | undefined
-    // Keep a singleton EventSource per href
     es: EventSource | null
 }
 
-const IDLE: StreamEntry = { status: 'idle', events: [], lastEvent: undefined, error: undefined, es: null }
-
-const streamStore = new Store<Record<string, StreamEntry>>({})
+const IDLE: SseEntry = { status: 'idle', events: [], lastEvent: undefined, error: undefined, es: null }
+const sseStore = new Store<Record<string, SseEntry>>({})
 
 function subscribe(onStoreChange: () => void) {
-    return streamStore.subscribe(() => onStoreChange())
+    return sseStore.subscribe(() => onStoreChange())
 }
 
-function getEntry(href: string): StreamEntry {
+function getEntry(href: string): SseEntry {
     // Must be referentially stable when unchanged (React useSyncExternalStore contract).
-    return streamStore.state[href] ?? IDLE
+    return sseStore.state[href] ?? IDLE
 }
 
 /**
- * Manage an SSE stream. This is "Streamed" mode.
+ * Manage an SSE subscription (realtime / long-lived).
  *
- * - Does not connect by default (to keep SSR/prod snapshots stable).
+ * - Does not connect by default (keeps initial render deterministic).
  * - `start()` opens an EventSource to the server-owned `href`.
- * - The stream is cached by href so multiple components share the connection.
+ * - The subscription is cached by href so multiple components share the connection.
  */
-export function useStream<TEvent>(ref: { href: string }, opts?: { maxEvents?: number }) {
+export function useSse<TEvent>(ref: { href: string }, opts?: { maxEvents?: number }) {
     const href = ref.href
     const maxEvents = opts?.maxEvents ?? 50
 
@@ -47,10 +45,10 @@ export function useStream<TEvent>(ref: { href: string }, opts?: { maxEvents?: nu
         if (current.es) return
 
         const es = new EventSource(href)
-        streamStore.setState((s) => ({ ...s, [href]: { ...current, status: 'connecting', error: undefined, es } }))
+        sseStore.setState((s) => ({ ...s, [href]: { ...current, status: 'connecting', error: undefined, es } }))
 
         es.addEventListener('open', () => {
-            streamStore.setState((s) => {
+            sseStore.setState((s) => {
                 const now = s[href] ?? current
                 if (now.es !== es) return s
                 return { ...s, [href]: { ...now, status: 'open', error: undefined } }
@@ -66,7 +64,7 @@ export function useStream<TEvent>(ref: { href: string }, opts?: { maxEvents?: nu
                 // keep as string
             }
 
-            streamStore.setState((s) => {
+            sseStore.setState((s) => {
                 const now = s[href] ?? current
                 if (now.es !== es) return s
                 const nextEvents = [...now.events, parsed].slice(-maxEvents)
@@ -75,10 +73,10 @@ export function useStream<TEvent>(ref: { href: string }, opts?: { maxEvents?: nu
         })
 
         es.addEventListener('error', () => {
-            streamStore.setState((s) => {
+            sseStore.setState((s) => {
                 const now = s[href] ?? current
                 if (now.es !== es) return s
-                return { ...s, [href]: { ...now, status: 'error', error: 'Stream error' } }
+                return { ...s, [href]: { ...now, status: 'error', error: 'SSE error' } }
             })
         })
     }
@@ -87,13 +85,13 @@ export function useStream<TEvent>(ref: { href: string }, opts?: { maxEvents?: nu
         const current = getEntry(href)
         if (!current.es) return
         current.es.close()
-        streamStore.setState((s) => ({ ...s, [href]: { ...current, status: 'closed', es: null } }))
+        sseStore.setState((s) => ({ ...s, [href]: { ...current, status: 'closed', es: null } }))
     }
 
     const reset = () => {
         const current = getEntry(href)
         if (current.es) current.es.close()
-        streamStore.setState((s) => ({ ...s, [href]: IDLE }))
+        sseStore.setState((s) => ({ ...s, [href]: IDLE }))
     }
 
     return {
@@ -107,10 +105,10 @@ export function useStream<TEvent>(ref: { href: string }, opts?: { maxEvents?: nu
     } as const
 }
 
-export function clearStreamCache() {
-    for (const entry of Object.values(streamStore.state)) {
+export function clearSseCache() {
+    for (const entry of Object.values(sseStore.state)) {
         if (entry.es) entry.es.close()
     }
-    streamStore.setState({})
+    sseStore.setState({})
 }
 

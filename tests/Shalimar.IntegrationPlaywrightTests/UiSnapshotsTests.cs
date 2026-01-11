@@ -142,17 +142,42 @@ public class UiSnapshotsTests(IntegrationAppFixture fixture)
     }
 
     [Fact]
-    public async Task Dashboard_Streamed_Started()
+    public async Task Dashboard_Sse_Started()
     {
-        var (context, page, diag) = await fixture.NewPageAsync(nameof(Dashboard_Streamed_Started));
+        var (context, page, diag) = await fixture.NewPageAsync(nameof(Dashboard_Sse_Started));
         try
         {
             await page.GotoAsync(fixture.BaseUrl);
             await page.WaitForLoadStateAsync(LoadState.NetworkIdle);
-            await page.GetByTestId("stream-start").ClickAsync();
-            await Assertions.Expect(page.GetByTestId("stream-status")).ToContainTextAsync("open");
-            await Assertions.Expect(page.GetByTestId("stream-last")).ToContainTextAsync("Stream tick");
-            await SnapshotAssertions.AssertMatchesAsync(page, diag, nameof(Dashboard_Streamed_Started), "dashboard-stream.png");
+            await page.GetByTestId("sse-start").ClickAsync();
+            await Assertions.Expect(page.GetByTestId("sse-status")).ToContainTextAsync("open");
+            await Assertions.Expect(page.GetByTestId("sse-last")).ToContainTextAsync("Stream tick");
+            await SnapshotAssertions.AssertMatchesAsync(page, diag, nameof(Dashboard_Sse_Started), "dashboard-sse.png");
+        }
+        catch (Exception ex)
+        {
+            await diag.CaptureFailureAsync(page, ex);
+            throw;
+        }
+        finally
+        {
+            await diag.FlushAsync();
+            await context.DisposeAsync();
+        }
+    }
+
+    [Fact]
+    public async Task Dashboard_Streamed_Completed()
+    {
+        var (context, page, diag) = await fixture.NewPageAsync(nameof(Dashboard_Streamed_Completed));
+        try
+        {
+            await page.GotoAsync(fixture.BaseUrl);
+            await page.WaitForLoadStateAsync(LoadState.NetworkIdle);
+            await page.GetByTestId("streamed-start").ClickAsync();
+            await Assertions.Expect(page.GetByTestId("streamed-status")).ToContainTextAsync("done");
+            await Assertions.Expect(page.GetByTestId("streamed-last")).ToContainTextAsync("#");
+            await SnapshotAssertions.AssertMatchesAsync(page, diag, nameof(Dashboard_Streamed_Completed), "dashboard-streamed.png");
         }
         catch (Exception ex)
         {

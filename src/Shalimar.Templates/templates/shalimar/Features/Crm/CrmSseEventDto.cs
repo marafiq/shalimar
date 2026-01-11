@@ -1,9 +1,9 @@
 namespace ShalimarApp.Features.Crm;
 
 /// <summary>
-/// Typed stream event envelope for SSE. Keep this stable and explicit.
+/// Typed SSE event envelope. Separate from Streamed mode.
 /// </summary>
-public sealed record CrmStreamEventDto(
+public sealed record CrmSseEventDto(
     string Type,
     ActivityItemDto Activity,
     DateTimeOffset Ts);
