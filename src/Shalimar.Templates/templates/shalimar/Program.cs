@@ -5,6 +5,7 @@ using ShalimarApp.Features.Home;
 using ShalimarApp.Features.Settings;
 using ShalimarApp.Features.Tasks;
 using ShalimarApp.Features.Tasks.Board;
+using ShalimarApp.Features.V2.Workbench;
 using FluentValidation;
 using Shalimar;
 using Shalimar.Vite;
@@ -160,6 +161,43 @@ app.MapGet("/tasks", async (HttpContext http, CrmRepository repo) =>
     var props = new TasksProps("Tasks", repo.Snapshot(), grid);
     return ShalimarTypedResults.Component(MakeContext(app), props, "Shalimar App");
 }).ForTsxFile("Features/Tasks/route.tsx").AsComponent<TasksProps>();
+
+// v2: server-authored tree + pure TSX renderer (route module is generated under Generated/V2Routes/**).
+app.MapGet("/v2/workbench", async (HttpContext http, CrmRepository repo) =>
+{
+    var agentPanel = new Component<WorkbenchAgentPanelProps>(
+        new WorkbenchAgentPanelProps(
+            Insights: Shalimar.Generated.Components.WorkbenchProps.Deferred.V2WorkbenchAgentInsights()),
+        Shalimar.Generated.Behaviors.WorkbenchProps.PrefetchDeferred());
+
+    var props = new WorkbenchProps(
+        Title: "V2 Workbench",
+        Summary: Shalimar.Generated.Components.WorkbenchProps.Deferred.V2WorkbenchSummary(),
+        AgentPanel: agentPanel);
+
+    return ShalimarTypedResults.Component(MakeContext(app), props, "Shalimar App");
+}).ForTsxFile("Features/V2/Workbench/WorkbenchPage.tsx").AsComponent<WorkbenchProps>();
+
+app.MapGet("/v2/workbench/summary", (CrmRepository repo) =>
+{
+    var snapshot = repo.Snapshot();
+    var open = snapshot.Tasks.Count(t => t.Status != "done");
+    var overdue = snapshot.Tasks.Count(t => t.DueAt is not null && t.DueAt.Value < DateTimeOffset.UtcNow && t.Status != "done");
+    return new WorkbenchSummaryDto(OpenTasks: open, OverdueTasks: overdue, ActiveAgents: 3);
+})
+    .ForComponent<WorkbenchProps>()
+    .ForNode<WorkbenchProps>(p => p.Summary)
+    .AsDeferred<WorkbenchSummaryDto>();
+
+app.MapGet("/v2/workbench/agent/insights", (CrmRepository repo) =>
+{
+    return new AgentInsightsDto(
+        Headline: "Next best actions",
+        Suggestions: new[] { "Triage overdue tasks", "Draft follow-up to account owner", "Prepare weekly status update" });
+})
+    .ForComponent<WorkbenchProps>()
+    .ForNode<WorkbenchProps>(p => p.AgentPanel.Props.Insights)
+    .AsDeferred<AgentInsightsDto>();
 
 static async Task WriteSseAsync<T>(HttpContext http, T data, CancellationToken ct)
 {

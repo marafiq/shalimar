@@ -661,7 +661,7 @@ public sealed record WorkProps(string Message) : Shalimar.IComponentProps;
         var routes = Assert.Single(generated, t => t.Contains("SHALIMAR_TS: shalimar-routes.g.ts", StringComparison.Ordinal));
         Assert.Contains("route('work', 'Generated/V2Routes/Work/route.tsx')", routes, StringComparison.Ordinal);
 
-        var v2Module = Assert.Single(generated, t => t.Contains("SHALIMAR_TS: Generated/V2Routes/Work/route.tsx", StringComparison.Ordinal));
+        var v2Module = Assert.Single(generated, t => t.Contains("SHALIMAR_TS: V2Routes/Work/route.tsx", StringComparison.Ordinal));
         Assert.Contains("createFileRoute('/work')", v2Module, StringComparison.Ordinal);
         Assert.Contains("Features/V2/Workbench/WorkbenchPage", v2Module, StringComparison.Ordinal);
     }
@@ -858,7 +858,7 @@ public static class App
         // Leaf is nested under WorkbenchProps.AgentPanel.Grid, but binding must still be on the root component type.
         app.MapGet("/v2/workbench/grid", () => new GridDto(1))
             .ForComponent<WorkbenchProps>()
-            .ForNode<WorkbenchProps>(p => p.AgentPanel.Grid)
+            .ForNode<WorkbenchProps>(p => p.AgentPanel.Props.Grid)
             .AsDeferred<GridDto>();
     }
 }
