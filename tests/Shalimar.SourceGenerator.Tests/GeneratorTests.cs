@@ -663,6 +663,148 @@ public sealed record WorkProps(string Message) : Shalimar.IComponentProps;
     }
 
     [Fact]
+    public void V2_Tree_Missing_Leaf_Binding_Produces_Diagnostic()
+    {
+        var source = """
+using System;
+
+namespace Shalimar
+{
+    public interface IComponentProps { }
+    public sealed record Deferred<T>(string Href);
+
+    public static class RouteBuilderExtensions
+    {
+        public static RouteHandlerBuilder AsComponent<TProps>(this RouteHandlerBuilder builder) where TProps : IComponentProps => builder;
+        public static RouteHandlerBuilder ForTsxFile(this RouteHandlerBuilder builder, string path) => builder;
+        public static RouteHandlerBuilder ForComponent<TProps>(this RouteHandlerBuilder builder) where TProps : IComponentProps => builder;
+        public static RouteHandlerBuilder ForNode<TProps>(this RouteHandlerBuilder builder, Func<TProps, object?> node) where TProps : IComponentProps => builder;
+        public static RouteHandlerBuilder AsDeferred<T>(this RouteHandlerBuilder builder) => builder;
+    }
+}
+
+public sealed class RouteHandlerBuilder
+{
+    public RouteHandlerBuilder WithName(string name) => this;
+}
+
+public sealed class WebApplication
+{
+    public RouteHandlerBuilder MapGet(string pattern, Delegate handler) => new();
+}
+
+namespace TestApp;
+
+public sealed record WorkbenchProps(Shalimar.Deferred<GridDto> Grid) : Shalimar.IComponentProps;
+public sealed record GridDto(int Total);
+
+public static class App
+{
+    public static void Configure(WebApplication app)
+    {
+        // v2 root: opt-in validation via Features/V2/** binding
+        app.MapGet("/v2/workbench", () => new WorkbenchProps(new Shalimar.Deferred<GridDto>("/v2/workbench/grid")))
+            .ForTsxFile("Features/V2/Workbench/route.tsx")
+            .AsComponent<WorkbenchProps>();
+
+        // Intentionally missing the deferred endpoint binding for leaf "Grid".
+    }
+}
+""";
+
+        var syntaxTree = CSharpSyntaxTree.ParseText(source, CSharpParseOptions.Default);
+        var references = new[]
+        {
+            MetadataReference.CreateFromFile(typeof(object).Assembly.Location),
+            MetadataReference.CreateFromFile(typeof(Enumerable).Assembly.Location),
+        };
+
+        var compilation = CSharpCompilation.Create(
+            assemblyName: "TestApp",
+            syntaxTrees: new[] { syntaxTree },
+            references: references,
+            options: new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary, nullableContextOptions: NullableContextOptions.Enable));
+
+        var generator = new ShalimarGenerator();
+        GeneratorDriver driver = CSharpGeneratorDriver.Create(generator);
+        driver = driver.RunGeneratorsAndUpdateCompilation(compilation, out _, out var diagnostics);
+
+        Assert.Contains(diagnostics, d => d.Id == "SHALIMARV2001");
+    }
+
+    [Fact]
+    public void V2_Tree_With_ForNode_Binding_Passes()
+    {
+        var source = """
+using System;
+
+namespace Shalimar
+{
+    public interface IComponentProps { }
+    public sealed record Deferred<T>(string Href);
+
+    public static class RouteBuilderExtensions
+    {
+        public static RouteHandlerBuilder AsComponent<TProps>(this RouteHandlerBuilder builder) where TProps : IComponentProps => builder;
+        public static RouteHandlerBuilder ForTsxFile(this RouteHandlerBuilder builder, string path) => builder;
+        public static RouteHandlerBuilder ForComponent<TProps>(this RouteHandlerBuilder builder) where TProps : IComponentProps => builder;
+        public static RouteHandlerBuilder ForNode<TProps>(this RouteHandlerBuilder builder, Func<TProps, object?> node) where TProps : IComponentProps => builder;
+        public static RouteHandlerBuilder AsDeferred<T>(this RouteHandlerBuilder builder) => builder;
+    }
+}
+
+public sealed class RouteHandlerBuilder
+{
+    public RouteHandlerBuilder WithName(string name) => this;
+}
+
+public sealed class WebApplication
+{
+    public RouteHandlerBuilder MapGet(string pattern, Delegate handler) => new();
+}
+
+namespace TestApp;
+
+public sealed record WorkbenchProps(Shalimar.Deferred<GridDto> Grid) : Shalimar.IComponentProps;
+public sealed record GridDto(int Total);
+
+public static class App
+{
+    public static void Configure(WebApplication app)
+    {
+        app.MapGet("/v2/workbench", () => new WorkbenchProps(new Shalimar.Deferred<GridDto>("/v2/workbench/grid")))
+            .ForTsxFile("Features/V2/Workbench/route.tsx")
+            .AsComponent<WorkbenchProps>();
+
+        app.MapGet("/v2/workbench/grid", () => new GridDto(1))
+            .ForComponent<WorkbenchProps>()
+            .ForNode<WorkbenchProps>(p => p.Grid)
+            .AsDeferred<GridDto>();
+    }
+}
+""";
+
+        var syntaxTree = CSharpSyntaxTree.ParseText(source, CSharpParseOptions.Default);
+        var references = new[]
+        {
+            MetadataReference.CreateFromFile(typeof(object).Assembly.Location),
+            MetadataReference.CreateFromFile(typeof(Enumerable).Assembly.Location),
+        };
+
+        var compilation = CSharpCompilation.Create(
+            assemblyName: "TestApp",
+            syntaxTrees: new[] { syntaxTree },
+            references: references,
+            options: new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary, nullableContextOptions: NullableContextOptions.Enable));
+
+        var generator = new ShalimarGenerator();
+        GeneratorDriver driver = CSharpGeneratorDriver.Create(generator);
+        driver = driver.RunGeneratorsAndUpdateCompilation(compilation, out _, out var diagnostics);
+
+        Assert.DoesNotContain(diagnostics, d => d.Id == "SHALIMARV2001");
+    }
+
+    [Fact]
     public void Generator_Emits_SseRefs_And_Sse_Generic_Type()
     {
         var source = """

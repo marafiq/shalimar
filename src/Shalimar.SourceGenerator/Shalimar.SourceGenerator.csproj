@@ -8,7 +8,7 @@
     <Description>Roslyn source generator for Shalimar framework</Description>
     <PackageId>Shalimar.SourceGenerator</PackageId>
     <!-- Analyzer goes in analyzers folder, not lib -->
-    <NoWarn>$(NoWarn);NU5128</NoWarn>
+    <NoWarn>$(NoWarn);NU5128;RS2007;RS2008</NoWarn>
     <SuppressDependenciesWhenPacking>true</SuppressDependenciesWhenPacking>
   </PropertyGroup>
 

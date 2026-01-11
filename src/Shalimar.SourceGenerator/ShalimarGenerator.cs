@@ -17,6 +17,14 @@ namespace Shalimar.SourceGenerator;
 [Generator]
 public class ShalimarGenerator : IIncrementalGenerator
 {
+    private static readonly DiagnosticDescriptor V2MissingLeafBinding = new(
+        id: "SHALIMARV2001",
+        title: "Missing v2 tree endpoint binding",
+        messageFormat: "v2 tree leaf '{0}.{1}' ({2}) has no bound endpoint. Add an endpoint annotated with ForComponent<{0}>().ForNode<{0}>(p => p.{1}).As{2}<...>().",
+        category: "Shalimar.V2",
+        defaultSeverity: DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
     public void Initialize(IncrementalGeneratorInitializationContext context)
     {
         // Find all invocations of AsComponent<T>()
@@ -562,6 +570,8 @@ public class ShalimarGenerator : IIncrementalGenerator
         GenerateCSharpComponentTreeRefs(context, deferred, lazy, stream, sse);
         GenerateCSharpBehaviorsRefs(context, deferred, lazy, stream, sse);
 
+        ValidateV2TreeBindings(context, compilation, components, deferred, lazy, stream, sse);
+
         GenerateTypeScriptInvalidationsEmbedded(context, compilation, deferred, lazy, stream, sse);
         GenerateTypeScriptMutationsEmbedded(context, compilation, mutations);
 
@@ -617,6 +627,117 @@ public class ShalimarGenerator : IIncrementalGenerator
         sb.AppendLine("}");
 
         context.AddSource("Routes.g.cs", SourceText.From(sb.ToString(), Encoding.UTF8));
+    }
+
+    private enum ModeKind
+    {
+        Deferred,
+        Lazy,
+        Stream,
+        Sse
+    }
+
+    private sealed class LeafRequirement
+    {
+        public INamedTypeSymbol PropsType { get; }
+        public string NodePath { get; }
+        public ModeKind Mode { get; }
+
+        public LeafRequirement(INamedTypeSymbol propsType, string nodePath, ModeKind mode)
+        {
+            PropsType = propsType;
+            NodePath = nodePath;
+            Mode = mode;
+        }
+    }
+
+    private static void ValidateV2TreeBindings(
+        SourceProductionContext context,
+        Compilation compilation,
+        List<ComponentInfo> components,
+        List<DeferredInfo> deferred,
+        List<LazyInfo> lazy,
+        List<StreamInfo> stream,
+        List<SseInfo> sse)
+    {
+        // v2 validation is opt-in: only enforce for component routes explicitly bound to Features/V2/**
+        var v2Roots = components
+            .Where(c => !string.IsNullOrWhiteSpace(c.TsxFile) && c.TsxFile!.Replace('\\', '/').StartsWith("Features/V2/", StringComparison.Ordinal))
+            .ToList();
+
+        if (v2Roots.Count == 0) return;
+
+        var deferredDef = compilation.GetTypeByMetadataName("Shalimar.Deferred`1");
+        var lazyDef = compilation.GetTypeByMetadataName("Shalimar.Lazy`1");
+        var streamDef = compilation.GetTypeByMetadataName("Shalimar.Stream`1");
+        var sseDef = compilation.GetTypeByMetadataName("Shalimar.Sse`1");
+        var componentDef = compilation.GetTypeByMetadataName("Shalimar.Component`1");
+
+        foreach (var root in v2Roots)
+        {
+            var props = compilation.GetTypeByMetadataName($"{root.Namespace}.{root.TypeName}");
+            if (props is null) continue;
+
+            var leaves = new List<LeafRequirement>();
+            CollectLeaves(props, prefix: "", leaves);
+
+            foreach (var leaf in leaves)
+            {
+                var propsName = leaf.PropsType.Name;
+                var path = leaf.NodePath;
+
+                var satisfied = leaf.Mode switch
+                {
+                    ModeKind.Deferred => deferred.Any(d => d.ParentComponentTypeName == propsName && d.NodePath == path),
+                    ModeKind.Lazy => lazy.Any(d => d.ParentComponentTypeName == propsName && d.NodePath == path),
+                    ModeKind.Stream => stream.Any(d => d.ParentComponentTypeName == propsName && d.NodePath == path),
+                    ModeKind.Sse => sse.Any(d => d.ParentComponentTypeName == propsName && d.NodePath == path),
+                    _ => false
+                };
+
+                if (!satisfied)
+                {
+                    context.ReportDiagnostic(Diagnostic.Create(
+                        V2MissingLeafBinding,
+                        Location.None,
+                        propsName,
+                        path,
+                        leaf.Mode.ToString()));
+                }
+            }
+        }
+
+        void CollectLeaves(INamedTypeSymbol propsType, string prefix, List<LeafRequirement> output)
+        {
+            foreach (var p in propsType.GetMembers().OfType<IPropertySymbol>())
+            {
+                if (p.DeclaredAccessibility != Accessibility.Public || p.IsStatic) continue;
+
+                var name = p.Name;
+                var nextPrefix = string.IsNullOrEmpty(prefix) ? name : prefix + "." + name;
+
+                if (p.Type is INamedTypeSymbol named && named.IsGenericType)
+                {
+                    var def = named.ConstructedFrom;
+
+                    if (componentDef is not null && SymbolEqualityComparer.Default.Equals(def, componentDef))
+                    {
+                        if (named.TypeArguments.Length == 1 && named.TypeArguments[0] is INamedTypeSymbol childProps)
+                            CollectLeaves(childProps, prefix: nextPrefix, output);
+                        continue;
+                    }
+
+                    if (deferredDef is not null && SymbolEqualityComparer.Default.Equals(def, deferredDef))
+                        output.Add(new LeafRequirement(propsType, nextPrefix, ModeKind.Deferred));
+                    else if (lazyDef is not null && SymbolEqualityComparer.Default.Equals(def, lazyDef))
+                        output.Add(new LeafRequirement(propsType, nextPrefix, ModeKind.Lazy));
+                    else if (streamDef is not null && SymbolEqualityComparer.Default.Equals(def, streamDef))
+                        output.Add(new LeafRequirement(propsType, nextPrefix, ModeKind.Stream));
+                    else if (sseDef is not null && SymbolEqualityComparer.Default.Equals(def, sseDef))
+                        output.Add(new LeafRequirement(propsType, nextPrefix, ModeKind.Sse));
+                }
+            }
+        }
     }
 
     private sealed class RouteParamSpec
