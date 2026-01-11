@@ -11,6 +11,9 @@ import { TaskDrawer } from '../_components/TaskDrawer'
 export const Route = createFileRoute('/tasks/board')({
     validateSearch: (search: Record<string, unknown>) => ({
         drawer: typeof search.drawer === 'string' ? search.drawer : undefined,
+        skeleton: search.skeleton === '1' || search.skeleton === 'true',
+        drawerSkeleton: search.drawerSkeleton === '1' || search.drawerSkeleton === 'true',
+        threadSkeleton: search.threadSkeleton === '1' || search.threadSkeleton === 'true',
     }),
     loader: async () => {
         await Promise.all([ensureUsers(), ensureAccounts(), ensureTasks()])
@@ -31,9 +34,11 @@ const columns: { status: TaskStatus; title: string }[] = [
 function BoardRoute() {
     const { tasks } = useStore(crmStore)
     const navigate = useNavigate()
-    const { drawer } = Route.useSearch()
+    const { drawer, skeleton, drawerSkeleton, threadSkeleton } = Route.useSearch()
     const [focus, setFocus] = useState<'all' | 'mine'>('all')
     const list = useMemo(() => Object.values(tasks), [tasks])
+
+    if (skeleton) return <PageSkeleton />
 
     const byStatus = useMemo(() => {
         const map: Record<TaskStatus, Task[]> = {
@@ -109,6 +114,8 @@ function BoardRoute() {
             <TaskDrawer
                 open={typeof drawer === 'string' && drawer.length > 0}
                 drawer={drawer}
+                forceSkeleton={drawerSkeleton}
+                forceThreadSkeleton={threadSkeleton}
                 onClose={() => navigate({ to: '/tasks/board', search: {} })}
             />
         </div>

@@ -16,7 +16,13 @@ import { DrawerSkeleton } from '../../../Client/ui/Skeletons'
 import { IconX } from '../../../Client/ui/icons'
 import { openModal, pushNotification, pushToast } from '../../../Client/ui/store'
 
-export function TaskDrawer(props: { open: boolean; drawer: string | undefined; onClose: () => void }) {
+export function TaskDrawer(props: {
+    open: boolean
+    drawer: string | undefined
+    forceSkeleton?: boolean
+    forceThreadSkeleton?: boolean
+    onClose: () => void
+}) {
     const state = useStore(crmStore)
     const [busy, setBusy] = useState(false)
 
@@ -52,7 +58,7 @@ export function TaskDrawer(props: { open: boolean; drawer: string | undefined; o
 
     if (!props.open) return null
 
-    const showSkeleton = mode === 'edit' && !task
+    const showSkeleton = props.forceSkeleton === true || (mode === 'edit' && !task)
 
     return (
         <div className="fixed inset-0 z-40" aria-label="Task drawer">
@@ -122,7 +128,7 @@ export function TaskDrawer(props: { open: boolean; drawer: string | undefined; o
                                             {(messages ?? []).map((m) => (
                                                 <MessageBubble key={m.id} actor={m.actor} author={m.author} body={m.body} ts={m.ts} />
                                             ))}
-                                            {!messages ? <ThreadSkeleton /> : null}
+                                            {!messages || props.forceThreadSkeleton ? <ThreadSkeleton /> : null}
                                         </div>
 
                                         <div className="rounded-xl border border-black/10 p-3 dark:border-white/10">

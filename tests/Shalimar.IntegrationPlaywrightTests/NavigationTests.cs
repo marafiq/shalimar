@@ -17,7 +17,7 @@ public class NavigationTests(IntegrationAppFixture fixture)
             await page.WaitForLoadStateAsync(LoadState.NetworkIdle);
             await Assertions.Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Welcome to Shalimar" }))
                 .ToBeVisibleAsync();
-            await SnapshotAssertions.AssertMatchesAsync(page, diag, nameof(Home_Renders), "home.png");
+            await SnapshotAssertions.AssertMatchesAsync(page, diag, nameof(Home_Renders), "dashboard.png");
         }
         catch (Exception ex)
         {

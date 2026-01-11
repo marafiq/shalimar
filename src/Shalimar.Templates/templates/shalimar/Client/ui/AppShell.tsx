@@ -7,6 +7,7 @@ import { setMobileNavOpen, toggleNotifications, uiStore } from './store'
 export function AppShell(props: { children: React.ReactNode }) {
     const ui = useStore(uiStore)
     const pathname = useRouterState({ select: (s) => s.location.pathname })
+    const unread = ui.notifications.filter((n) => !n.read).length
 
     return (
         <div className="min-h-full bg-white text-black dark:bg-zinc-950 dark:text-white">
@@ -27,9 +28,19 @@ export function AppShell(props: { children: React.ReactNode }) {
                         <div className="hidden w-[min(440px,40vw)] lg:block">
                             <TextField label="Search" aria-label="Global search" placeholder="Search tasks, accounts…" />
                         </div>
-                        <Button isQuiet onPress={toggleNotifications} aria-label="Open notifications" data-testid="top-notifications">
-                            <IconBell />
-                        </Button>
+                        <div className="relative">
+                            <Button
+                                isQuiet
+                                onPress={toggleNotifications}
+                                aria-label="Open notifications"
+                                data-testid="top-notifications"
+                            >
+                                <IconBell />
+                            </Button>
+                            {unread ? (
+                                <span className="pointer-events-none absolute right-1 top-1 h-2.5 w-2.5 rounded-full bg-blue-500 ring-2 ring-white dark:ring-zinc-950" />
+                            ) : null}
+                        </div>
                         <div className="hidden items-center gap-2 rounded-full border border-black/10 bg-black/5 px-3 py-1 text-xs dark:border-white/10 dark:bg-white/10 sm:flex">
                             <span className="h-2 w-2 rounded-full bg-emerald-500" />
                             <span className="opacity-80">Online</span>

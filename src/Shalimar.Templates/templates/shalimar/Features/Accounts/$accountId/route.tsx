@@ -6,6 +6,9 @@ import { crmStore, ensureAccounts, ensureUsers, loadContacts } from '../../../Cl
 import { PageSkeleton } from '../../../Client/ui/Skeletons'
 
 export const Route = createFileRoute('/accounts/$accountId')({
+    validateSearch: (search: Record<string, unknown>) => ({
+        skeleton: search.skeleton === '1' || search.skeleton === 'true',
+    }),
     loader: async ({ params }) => {
         await Promise.all([ensureUsers(), ensureAccounts(), loadContacts(params.accountId)])
         return null
@@ -16,9 +19,12 @@ export const Route = createFileRoute('/accounts/$accountId')({
 
 function AccountDetailRoute() {
     const { accountId } = Route.useParams()
+    const { skeleton } = Route.useSearch()
     const { accounts, users, contactsByAccount } = useStore(crmStore)
     const account = accounts[accountId]
     const contacts = contactsByAccount[accountId] ?? []
+
+    if (skeleton) return <PageSkeleton />
 
     const owner = useMemo(() => (account ? users.find((u) => u.id === account.ownerId) : undefined), [account, users])
 

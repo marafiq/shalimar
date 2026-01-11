@@ -6,6 +6,9 @@ import { crmStore, ensureAccounts, ensureTasks, ensureUsers, refreshActivity } f
 import { PageSkeleton } from '../../Client/ui/Skeletons'
 
 export const Route = createFileRoute('/')({
+    validateSearch: (search: Record<string, unknown>) => ({
+        skeleton: search.skeleton === '1' || search.skeleton === 'true',
+    }),
     loader: async () => {
         await Promise.all([ensureUsers(), ensureAccounts(), ensureTasks(), refreshActivity()])
         return null
@@ -16,7 +19,10 @@ export const Route = createFileRoute('/')({
 
 function HomeRoute() {
     const state = useStore(crmStore)
+    const { skeleton } = Route.useSearch()
     const [query, setQuery] = useState('')
+
+    if (skeleton) return <PageSkeleton />
 
     // Simulate "streamed" updates by polling activity.
     useEffect(() => {

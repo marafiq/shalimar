@@ -6,6 +6,9 @@ import { crmStore, ensureAccounts, ensureUsers } from '../../Client/store'
 import { PageSkeleton } from '../../Client/ui/Skeletons'
 
 export const Route = createFileRoute('/accounts')({
+    validateSearch: (search: Record<string, unknown>) => ({
+        skeleton: search.skeleton === '1' || search.skeleton === 'true',
+    }),
     loader: async () => {
         await Promise.all([ensureUsers(), ensureAccounts()])
         return null
@@ -16,7 +19,10 @@ export const Route = createFileRoute('/accounts')({
 
 function AccountsRoute() {
     const { accounts, users } = useStore(crmStore)
+    const { skeleton } = Route.useSearch()
     const list = useMemo(() => Object.values(accounts), [accounts])
+
+    if (skeleton) return <PageSkeleton />
 
     return (
         <div>
