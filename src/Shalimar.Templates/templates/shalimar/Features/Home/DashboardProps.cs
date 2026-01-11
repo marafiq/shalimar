@@ -12,5 +12,6 @@ public sealed record DashboardProps(
     IReadOnlyList<TaskDto> FocusTasks,
     IReadOnlyList<ActivityItemDto> Activity,
     Deferred<CrmInsightsDto> Insights,
-    Lazy<CrmForecastDto> Forecast);
+    Lazy<CrmForecastDto> Forecast,
+    Stream<CrmStreamEventDto> ActivityStream);
 

@@ -9,6 +9,8 @@ export type { ShalimarContext, ShalimarProviderProps } from './types'
 
 export { useDeferred, prefetchDeferred, clearDeferredCache } from './deferred'
 export { useLazy, clearLazyCache } from './lazy'
+export { useStream, clearStreamCache } from './stream'
+
 
 
 

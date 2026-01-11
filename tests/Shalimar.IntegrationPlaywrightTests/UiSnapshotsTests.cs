@@ -141,6 +141,31 @@ public class UiSnapshotsTests(IntegrationAppFixture fixture)
         await SnapshotRouteAsync(nameof(Page_Skeleton), "/tasks?skeleton=1", "page-skeleton.png");
     }
 
+    [Fact]
+    public async Task Dashboard_Streamed_Started()
+    {
+        var (context, page, diag) = await fixture.NewPageAsync(nameof(Dashboard_Streamed_Started));
+        try
+        {
+            await page.GotoAsync(fixture.BaseUrl);
+            await page.WaitForLoadStateAsync(LoadState.NetworkIdle);
+            await page.GetByTestId("stream-start").ClickAsync();
+            await Assertions.Expect(page.GetByTestId("stream-status")).ToContainTextAsync("open");
+            await Assertions.Expect(page.GetByTestId("stream-last")).ToContainTextAsync("Stream tick");
+            await SnapshotAssertions.AssertMatchesAsync(page, diag, nameof(Dashboard_Streamed_Started), "dashboard-stream.png");
+        }
+        catch (Exception ex)
+        {
+            await diag.CaptureFailureAsync(page, ex);
+            throw;
+        }
+        finally
+        {
+            await diag.FlushAsync();
+            await context.DisposeAsync();
+        }
+    }
+
     private async Task SnapshotRouteAsync(string testName, string path, string snapshotFile)
     {
         var (context, page, diag) = await fixture.NewPageAsync(testName);

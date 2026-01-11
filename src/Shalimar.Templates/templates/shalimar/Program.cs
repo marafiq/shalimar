@@ -53,7 +53,8 @@ app.MapGet("/", async (HttpContext http, CrmRepository repo) =>
         FocusTasks: snapshot.Tasks.Take(5).ToList(),
         Activity: snapshot.Activity.Take(12).ToList(),
         Insights: Shalimar.Generated.DeferredRefs.CrmInsights(),
-        Forecast: Shalimar.Generated.LazyRefs.CrmForecast());
+        Forecast: Shalimar.Generated.LazyRefs.CrmForecast(),
+        ActivityStream: Shalimar.Generated.StreamRefs.CrmActivityStream());
     return await http.RenderComponent(MakeContext(app), props, "Shalimar App");
 }).AsComponent<DashboardProps>();
 
@@ -65,11 +66,62 @@ app.MapGet("/crm/insights", (CrmRepository repo) => repo.Insights())
 app.MapGet("/crm/forecast", (CrmRepository repo) => repo.Forecast())
     .AsLazy<CrmForecastDto>();
 
+// Streamed mode: typed SSE subscription.
+app.MapGet("/crm/activity/stream", async (HttpContext http, CrmRepository repo, CancellationToken ct) =>
+{
+    http.Response.Headers.CacheControl = "no-cache";
+    http.Response.Headers.Connection = "keep-alive";
+    http.Response.Headers.ContentType = "text/event-stream";
+
+    // Deterministic first event for tests + UX.
+    var first = new CrmStreamEventDto(
+        Type: "activity",
+        Activity: repo.Activity().FirstOrDefault() ?? new ActivityItemDto("act_boot", DateTimeOffset.UtcNow, "system", "Stream connected."),
+        Ts: DateTimeOffset.UtcNow);
+
+    await WriteSseAsync(http, first, ct);
+
+    // A few deterministic ticks, then keep-alives.
+    for (var i = 0; i < 2 && !ct.IsCancellationRequested; i++)
+    {
+        await Task.Delay(250, ct);
+        var tick = new CrmStreamEventDto(
+            Type: "tick",
+            Activity: new ActivityItemDto($"act_tick_{i + 1}", DateTimeOffset.UtcNow, "system", $"Stream tick {i + 1}"),
+            Ts: DateTimeOffset.UtcNow);
+        await WriteSseAsync(http, tick, ct);
+    }
+
+    while (!ct.IsCancellationRequested)
+    {
+        await Task.Delay(2000, ct);
+        // keep-alive comment (ignored by EventSource)
+        await http.Response.WriteAsync($": keep-alive {DateTimeOffset.UtcNow:O}\n\n", ct);
+        await http.Response.Body.FlushAsync(ct);
+    }
+
+    return Results.Empty;
+}).AsStream<CrmStreamEventDto>();
+
 app.MapGet("/tasks", async (HttpContext http, CrmRepository repo) =>
 {
     var props = new TasksProps("Tasks", repo.Snapshot());
     return await http.RenderComponent(MakeContext(app), props, "Shalimar App");
 }).AsComponent<TasksProps>();
+
+static async Task WriteSseAsync<T>(HttpContext http, T data, CancellationToken ct)
+{
+    // Default JSON options are camelCase in Shalimar, but here we keep it explicit for SSE payloads.
+    var json = System.Text.Json.JsonSerializer.Serialize(data, new System.Text.Json.JsonSerializerOptions
+    {
+        PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase
+    });
+
+    await http.Response.WriteAsync("data: ", ct);
+    await http.Response.WriteAsync(json, ct);
+    await http.Response.WriteAsync("\n\n", ct);
+    await http.Response.Body.FlushAsync(ct);
+}
 
 app.MapGet("/tasks/board", async (HttpContext http, CrmRepository repo) =>
 {

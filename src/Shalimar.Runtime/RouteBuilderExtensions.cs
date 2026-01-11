@@ -39,6 +39,16 @@ public static class RouteBuilderExtensions
     }
 
     /// <summary>
+    /// Marks this endpoint as a streamed (SSE) subscription.
+    /// Stream endpoints are intended to be referenced from component props via <see cref="Stream{T}"/>.
+    /// </summary>
+    public static RouteHandlerBuilder AsStream<T>(this RouteHandlerBuilder builder)
+    {
+        builder.WithMetadata(new ShalimarStreamMetadata(typeof(T)));
+        return builder;
+    }
+
+    /// <summary>
     /// Associates a JSX file with this component route.
     /// </summary>
     public static RouteHandlerBuilder WithJsxFile(this RouteHandlerBuilder builder, string path)
@@ -67,3 +77,8 @@ public record ShalimarDeferredMetadata(Type ResultType);
 /// Metadata indicating this endpoint is a Shalimar lazy query.
 /// </summary>
 public record ShalimarLazyMetadata(Type ResultType);
+
+/// <summary>
+/// Metadata indicating this endpoint is a Shalimar stream (SSE) subscription.
+/// </summary>
+public record ShalimarStreamMetadata(Type EventType);

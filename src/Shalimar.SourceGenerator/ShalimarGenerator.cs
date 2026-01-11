@@ -42,8 +42,20 @@ public class ShalimarGenerator : IIncrementalGenerator
             .Where(static info => info is not null)
             .Collect();
 
+        // Find all invocations of AsStream<T>()
+        var streamCalls = context.SyntaxProvider
+            .CreateSyntaxProvider(
+                predicate: static (node, _) => IsAsStreamCall(node),
+                transform: static (ctx, _) => GetStreamInfo(ctx))
+            .Where(static info => info is not null)
+            .Collect();
+
         // Combine with compilation
-        var compilationAndComponents = context.CompilationProvider.Combine(componentCalls).Combine(deferredCalls).Combine(lazyCalls);
+        var compilationAndComponents = context.CompilationProvider
+            .Combine(componentCalls)
+            .Combine(deferredCalls)
+            .Combine(lazyCalls)
+            .Combine(streamCalls);
 
         // Generate output
         context.RegisterSourceOutput(compilationAndComponents, Execute);
@@ -68,6 +80,13 @@ public class ShalimarGenerator : IIncrementalGenerator
         return node is InvocationExpressionSyntax invocation &&
                invocation.Expression is MemberAccessExpressionSyntax memberAccess &&
                memberAccess.Name.Identifier.Text == "AsLazy";
+    }
+
+    private static bool IsAsStreamCall(SyntaxNode node)
+    {
+        return node is InvocationExpressionSyntax invocation &&
+               invocation.Expression is MemberAccessExpressionSyntax memberAccess &&
+               memberAccess.Name.Identifier.Text == "AsStream";
     }
 
     private static ComponentInfo? GetComponentInfo(GeneratorSyntaxContext context)
@@ -134,6 +153,26 @@ public class ShalimarGenerator : IIncrementalGenerator
 
         var method = MakeRefMethodName(routePath!) ;
         return new LazyInfo(typeSymbol, routePath!, method);
+    }
+
+    private static StreamInfo? GetStreamInfo(GeneratorSyntaxContext context)
+    {
+        var invocation = (InvocationExpressionSyntax)context.Node;
+        var memberAccess = (MemberAccessExpressionSyntax)invocation.Expression;
+
+        if (memberAccess.Name is not GenericNameSyntax genericName ||
+            genericName.TypeArgumentList.Arguments.Count != 1)
+            return null;
+
+        var typeArg = genericName.TypeArgumentList.Arguments[0];
+        var typeSymbol = context.SemanticModel.GetTypeInfo(typeArg).Type;
+        if (typeSymbol is null) return null;
+
+        var routePath = FindRoutePath(invocation);
+        if (string.IsNullOrWhiteSpace(routePath)) return null;
+
+        var method = MakeRefMethodName(routePath!);
+        return new StreamInfo(typeSymbol, routePath!, method);
     }
 
     private static string? FindRoutePath(InvocationExpressionSyntax invocation)
@@ -205,15 +244,15 @@ public class ShalimarGenerator : IIncrementalGenerator
 
     private static void Execute(
         SourceProductionContext context,
-        (((Compilation Compilation, ImmutableArray<ComponentInfo?> Components) Left, ImmutableArray<DeferredInfo?> Deferred) Mid, ImmutableArray<LazyInfo?> Lazy) source)
+        ((((Compilation Compilation, ImmutableArray<ComponentInfo?> Components) Left, ImmutableArray<DeferredInfo?> Deferred) Mid, ImmutableArray<LazyInfo?> Lazy) Left2, ImmutableArray<StreamInfo?> Stream) source)
     {
-        var compilation = source.Mid.Left.Compilation;
-        var components = source.Mid.Left.Components
+        var compilation = source.Left2.Mid.Left.Compilation;
+        var components = source.Left2.Mid.Left.Components
             .Where(c => c is not null)
             .Cast<ComponentInfo>()
             .ToList();
 
-        var deferred = source.Mid.Deferred
+        var deferred = source.Left2.Mid.Deferred
             .Where(d => d is not null)
             .Cast<DeferredInfo>()
             .GroupBy(d => d.Path, StringComparer.Ordinal)
@@ -221,9 +260,17 @@ public class ShalimarGenerator : IIncrementalGenerator
             .OrderBy(d => d.Path, StringComparer.Ordinal)
             .ToList();
 
-        var lazy = source.Lazy
+        var lazy = source.Left2.Lazy
             .Where(d => d is not null)
             .Cast<LazyInfo>()
+            .GroupBy(d => d.Path, StringComparer.Ordinal)
+            .Select(g => g.First())
+            .OrderBy(d => d.Path, StringComparer.Ordinal)
+            .ToList();
+
+        var stream = source.Stream
+            .Where(d => d is not null)
+            .Cast<StreamInfo>()
             .GroupBy(d => d.Path, StringComparer.Ordinal)
             .Select(g => g.First())
             .OrderBy(d => d.Path, StringComparer.Ordinal)
@@ -233,6 +280,7 @@ public class ShalimarGenerator : IIncrementalGenerator
         GenerateCSharpRoutes(context, components);
         GenerateCSharpDeferredRefs(context, deferred);
         GenerateCSharpLazyRefs(context, lazy);
+        GenerateCSharpStreamRefs(context, stream);
 
         // Generate TypeScript embedded in C# files (for MSBuild task to extract)
         GenerateTypeScriptTypesEmbedded(context, compilation, components);
@@ -309,6 +357,28 @@ public class ShalimarGenerator : IIncrementalGenerator
 
         sb.AppendLine("}");
         context.AddSource("LazyRefs.g.cs", SourceText.From(sb.ToString(), Encoding.UTF8));
+    }
+
+    private static void GenerateCSharpStreamRefs(SourceProductionContext context, List<StreamInfo> stream)
+    {
+        if (stream.Count == 0)
+            return;
+
+        var sb = new StringBuilder();
+        sb.AppendLine("// <auto-generated/>");
+        sb.AppendLine("namespace Shalimar.Generated;");
+        sb.AppendLine();
+        sb.AppendLine("public static class StreamRefs");
+        sb.AppendLine("{");
+
+        foreach (var d in stream)
+        {
+            var ts = d.EventType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+            sb.AppendLine($"    public static global::Shalimar.Stream<{ts}> {d.RefMethodName}() => new global::Shalimar.Stream<{ts}>(\"{d.Path}\");");
+        }
+
+        sb.AppendLine("}");
+        context.AddSource("StreamRefs.g.cs", SourceText.From(sb.ToString(), Encoding.UTF8));
     }
 
     private static void GenerateTypeScriptTypesEmbedded(
@@ -900,6 +970,20 @@ public class ShalimarGenerator : IIncrementalGenerator
         public LazyInfo(ITypeSymbol resultType, string path, string refMethodName)
         {
             ResultType = resultType;
+            Path = path;
+            RefMethodName = refMethodName;
+        }
+    }
+
+    private sealed class StreamInfo
+    {
+        public ITypeSymbol EventType { get; }
+        public string Path { get; }
+        public string RefMethodName { get; }
+
+        public StreamInfo(ITypeSymbol eventType, string path, string refMethodName)
+        {
+            EventType = eventType;
             Path = path;
             RefMethodName = refMethodName;
         }
