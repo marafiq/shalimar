@@ -65,7 +65,7 @@ src/
 ├── Shalimar.RoslynAnalyzer/   # Roslyn analyzer (netstandard2.0)
 ├── Shalimar.Vite/             # Vite dev server integration
 ├── Shalimar.Templates/        # dotnet new template package
-│   └── templates/shalimar/Shared/runtime/  # TS source (updated by pack, bundled by Vite)
+│   └── templates/shalimar/Shared/runtime/  # runtime TS destination in generated app
 └── Shalimar.IntegrationApp/   # Generated test app (gitignored)
 
 tests/
@@ -142,9 +142,12 @@ Failed TestName [duration]
 ./scripts/pack.ps1 -Version 2.0.0
 ```
 **What it does:**
-1. Copies TS source from `Shalimar.Runtime/ts/src/` to template's `Shared/runtime/`
-2. Builds all .NET projects (Release)
-3. Creates NuGet packages in `artifacts/`
+1. Builds all .NET projects (Release)
+2. Creates NuGet packages in `artifacts/`
+
+**Runtime TS delivery (single source of truth):**
+- Template packages the runtime TS directly from `src/Shalimar.Runtime/ts/src/` into the template output path `Shared/runtime/` in the generated app.
+- There should be **no manual copying** of runtime TS into the template folder as part of the pack step.
 
 **Logs:** Lists all .nupkg files created with paths.
 
@@ -215,7 +218,7 @@ Browser → Vite → JS only (HMR)
 | .NET SDK | **10.0.101** |
 | C# | **14** |
 | React | **19.2.3** |
-| TanStack Router | **1.146.2** |
+| TanStack Router | **1.147.1** |
 | TanStack Store | **0.8.0** |
 | Vite | **7.3.1** |
 | TypeScript | **5.9.3** |
