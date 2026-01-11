@@ -5,7 +5,7 @@ namespace Shalimar.IntegrationPlaywrightTests;
 
 [Collection("Integration")]
 [Trait("Category", "Integration")]
-public class NavigationTests(IntegrationAppFixture fixture)
+public class NavigationTests(SandboxAppFixture fixture)
 {
     [Fact]
     public async Task Home_Renders()

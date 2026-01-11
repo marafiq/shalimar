@@ -144,7 +144,7 @@ Tests:
 
 - Generate per-props store modules and selectors derived from leaf paths.
 
-### Phase E: IntegrationApp “Agent Workbench” proving slice
+### Phase E: Sandbox app “Agent Workbench” proving slice
 
 - One slice proving:
   - grid with paging + external filters (URL state)

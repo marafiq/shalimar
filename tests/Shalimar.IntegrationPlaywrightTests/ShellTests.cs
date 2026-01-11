@@ -4,7 +4,7 @@ namespace Shalimar.IntegrationPlaywrightTests;
 
 [Collection("Integration")]
 [Trait("Category", "Integration")]
-public class ShellTests(IntegrationAppFixture fixture)
+public class ShellTests(SandboxAppFixture fixture)
 {
     [Fact]
     public async Task Shell_Contains_Context()

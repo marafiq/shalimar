@@ -5,7 +5,7 @@ namespace Shalimar.IntegrationPlaywrightTests;
 
 [Collection("Integration")]
 [Trait("Category", "Integration")]
-public class UiSnapshotsTests(IntegrationAppFixture fixture)
+public class UiSnapshotsTests(SandboxAppFixture fixture)
 {
     [Fact]
     public async Task Tasks_Page()

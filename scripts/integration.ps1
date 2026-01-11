@@ -1,12 +1,12 @@
 #!/usr/bin/env pwsh
 <#
 .SYNOPSIS
-    Creates IntegrationApp from template and validates the full pipeline.
+    Creates a generated sandbox app from the template and validates the full pipeline.
 .DESCRIPTION
     1. Packs all NuGet packages (unless -SkipPack)
-    2. Cleans any existing IntegrationApp
+    2. Cleans any existing generated app
     3. Installs template from local artifacts
-    4. Creates IntegrationApp via dotnet new shalimar
+    4. Creates a sandbox app via dotnet new shalimar
     5. Builds and verifies all generated files
     6. Runs Playwright E2E tests (unless -SkipTests)
 .PARAMETER SkipPack
@@ -25,7 +25,8 @@ param(
 $ErrorActionPreference = "Stop"
 
 $RepoRoot = Join-Path $PSScriptRoot ".."
-$IntegrationAppDir = Join-Path $RepoRoot "src/Shalimar.IntegrationApp"
+$AppName = "Shalimar.SandboxApp"
+$GeneratedAppDir = Join-Path $RepoRoot "src/$AppName"
 $ArtifactsDir = Join-Path $RepoRoot "artifacts"
 $RuntimeIndexTs = Join-Path $RepoRoot "src/Shalimar.Runtime/ts/src/index.ts"
 
@@ -58,9 +59,9 @@ if (-not $SkipPack) {
 
 # Step 2: Clean
 Write-Host "`n[2/6] Cleaning..." -ForegroundColor Cyan
-if (Test-Path $IntegrationAppDir) {
-    Write-Host "  Removing existing IntegrationApp..."
-    Remove-Item $IntegrationAppDir -Recurse -Force
+if (Test-Path $GeneratedAppDir) {
+    Write-Host "  Removing existing generated app ($AppName)..."
+    Remove-Item $GeneratedAppDir -Recurse -Force
 }
 
 # Clean NuGet cache for shalimar packages
@@ -84,15 +85,15 @@ Write-Host "  Installing: $($pkg.Name)"
 dotnet new install $pkg.FullName --force
 if ($LASTEXITCODE -ne 0) { throw "Template install failed" }
 
-# Step 4: Create IntegrationApp
-Write-Host "`n[4/6] Creating IntegrationApp..." -ForegroundColor Cyan
+# Step 4: Create generated app
+Write-Host "`n[4/6] Creating generated app ($AppName)..." -ForegroundColor Cyan
 Push-Location (Join-Path $RepoRoot "src")
-dotnet new shalimar -n Shalimar.IntegrationApp
+dotnet new shalimar -n $AppName
 if ($LASTEXITCODE -ne 0) { Pop-Location; throw "dotnet new shalimar failed" }
 Pop-Location
 
 if ($VerifyTsMarker) {
-    $deliveredPath = Join-Path $IntegrationAppDir "Shared/runtime/index.ts"
+    $deliveredPath = Join-Path $GeneratedAppDir "Shared/runtime/index.ts"
     if (-not (Test-Path $deliveredPath)) { throw "Missing runtime TS in generated app: Shared/runtime/index.ts" }
     $delivered = Get-Content $deliveredPath -Raw
     if ($delivered -notmatch [Regex]::Escape($VerifyTsMarker)) {
@@ -101,7 +102,7 @@ if ($VerifyTsMarker) {
     Write-Host "  ✓ Verified TS marker delivered via template to Shared/runtime/index.ts" -ForegroundColor Green
 }
 
-# Add local nuget.config for IntegrationApp
+# Add local nuget.config for generated app
 @"
 <?xml version="1.0" encoding="utf-8"?>
 <configuration>
@@ -111,11 +112,11 @@ if ($VerifyTsMarker) {
     <add key="nuget.org" value="https://api.nuget.org/v3/index.json" />
   </packageSources>
 </configuration>
-"@ | Set-Content (Join-Path $IntegrationAppDir "nuget.config")
+"@ | Set-Content (Join-Path $GeneratedAppDir "nuget.config")
 
-# Step 5: Build IntegrationApp
-Write-Host "`n[5/6] Building IntegrationApp..." -ForegroundColor Cyan
-Push-Location $IntegrationAppDir
+# Step 5: Build generated app
+Write-Host "`n[5/6] Building generated app ($AppName)..." -ForegroundColor Cyan
+Push-Location $GeneratedAppDir
 
 Write-Host "  dotnet restore..."
 dotnet restore
@@ -137,7 +138,7 @@ Pop-Location
 
 # Verify generated files
 Write-Host "`nVerifying build outputs..." -ForegroundColor Cyan
-$GeneratedDir = Join-Path $IntegrationAppDir "Generated"
+$GeneratedDir = Join-Path $GeneratedAppDir "Generated"
 
 # TanStack Router generates this file
 $routeTreePath = Join-Path $GeneratedDir "routeTree.gen.ts"
@@ -148,7 +149,7 @@ if (Test-Path $routeTreePath) {
 }
 
 # Vite generates the manifest
-$manifestPath = Join-Path $IntegrationAppDir "wwwroot/dist/.vite/manifest.json"
+$manifestPath = Join-Path $GeneratedAppDir "wwwroot/dist/.vite/manifest.json"
 if (Test-Path $manifestPath) {
     Write-Host "  ✓ wwwroot/dist/.vite/manifest.json (Vite)" -ForegroundColor Green
 } else {
@@ -186,4 +187,4 @@ if (-not $SkipTests) {
 Write-Host "`n╔══════════════════════════════════════╗" -ForegroundColor Green
 Write-Host "║  Integration Complete                ║" -ForegroundColor Green
 Write-Host "╚══════════════════════════════════════╝" -ForegroundColor Green
-Write-Host "Run: cd src/Shalimar.IntegrationApp && dotnet run" -ForegroundColor Cyan
+Write-Host "Run: cd src/$AppName && dotnet run" -ForegroundColor Cyan

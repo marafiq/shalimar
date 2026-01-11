@@ -25,6 +25,14 @@ public class ShalimarGenerator : IIncrementalGenerator
         defaultSeverity: DiagnosticSeverity.Error,
         isEnabledByDefault: true);
 
+    private static readonly DiagnosticDescriptor V2DuplicateLeafBinding = new(
+        id: "SHALIMARV2002",
+        title: "Duplicate v2 tree endpoint binding",
+        messageFormat: "v2 tree leaf '{0}.{1}' ({2}) is bound by multiple endpoints: {3}. Keep exactly one binding for each leaf.",
+        category: "Shalimar.V2",
+        defaultSeverity: DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
     public void Initialize(IncrementalGeneratorInitializationContext context)
     {
         // Find all invocations of AsComponent<T>()
@@ -581,6 +589,7 @@ public class ShalimarGenerator : IIncrementalGenerator
         GenerateTypeScriptDefaultsEmbedded(context, compilation, mutations);
         GenerateTypeScriptUseMutationsEmbedded(context, compilation, mutations);
         GenerateTypeScriptRoutesEmbedded(context, components);
+        GenerateTypeScriptV2RouteModulesEmbedded(context, components);
         GenerateTypeScriptRouteDefsEmbedded(context, components);
         GenerateTypeScriptPathsEmbedded(context, components);
         GenerateTypeScriptFacadesEmbedded(context);
@@ -679,23 +688,37 @@ public class ShalimarGenerator : IIncrementalGenerator
             if (props is null) continue;
 
             var leaves = new List<LeafRequirement>();
-            CollectLeaves(props, prefix: "", leaves);
+            CollectLeaves(rootPropsType: props, currentPropsType: props, prefix: "", leaves);
 
             foreach (var leaf in leaves)
             {
                 var propsName = leaf.PropsType.Name;
                 var path = leaf.NodePath;
 
-                var satisfied = leaf.Mode switch
+                var matches = leaf.Mode switch
                 {
-                    ModeKind.Deferred => deferred.Any(d => d.ParentComponentTypeName == propsName && d.NodePath == path),
-                    ModeKind.Lazy => lazy.Any(d => d.ParentComponentTypeName == propsName && d.NodePath == path),
-                    ModeKind.Stream => stream.Any(d => d.ParentComponentTypeName == propsName && d.NodePath == path),
-                    ModeKind.Sse => sse.Any(d => d.ParentComponentTypeName == propsName && d.NodePath == path),
-                    _ => false
+                    ModeKind.Deferred => deferred
+                        .Where(d => d.ParentComponentTypeName == propsName && d.NodePath == path)
+                        .Select(d => d.Path),
+                    ModeKind.Lazy => lazy
+                        .Where(d => d.ParentComponentTypeName == propsName && d.NodePath == path)
+                        .Select(d => d.Path),
+                    ModeKind.Stream => stream
+                        .Where(d => d.ParentComponentTypeName == propsName && d.NodePath == path)
+                        .Select(d => d.Path),
+                    ModeKind.Sse => sse
+                        .Where(d => d.ParentComponentTypeName == propsName && d.NodePath == path)
+                        .Select(d => d.Path),
+                    _ => Enumerable.Empty<string>()
                 };
 
-                if (!satisfied)
+                var matched = matches
+                    .Where(p => !string.IsNullOrWhiteSpace(p))
+                    .Distinct(StringComparer.Ordinal)
+                    .OrderBy(p => p, StringComparer.Ordinal)
+                    .ToList();
+
+                if (matched.Count == 0)
                 {
                     context.ReportDiagnostic(Diagnostic.Create(
                         V2MissingLeafBinding,
@@ -704,12 +727,22 @@ public class ShalimarGenerator : IIncrementalGenerator
                         path,
                         leaf.Mode.ToString()));
                 }
+                else if (matched.Count > 1)
+                {
+                    context.ReportDiagnostic(Diagnostic.Create(
+                        V2DuplicateLeafBinding,
+                        Location.None,
+                        propsName,
+                        path,
+                        leaf.Mode.ToString(),
+                        string.Join(", ", matched)));
+                }
             }
         }
 
-        void CollectLeaves(INamedTypeSymbol propsType, string prefix, List<LeafRequirement> output)
+        void CollectLeaves(INamedTypeSymbol rootPropsType, INamedTypeSymbol currentPropsType, string prefix, List<LeafRequirement> output)
         {
-            foreach (var p in propsType.GetMembers().OfType<IPropertySymbol>())
+            foreach (var p in currentPropsType.GetMembers().OfType<IPropertySymbol>())
             {
                 if (p.DeclaredAccessibility != Accessibility.Public || p.IsStatic) continue;
 
@@ -723,18 +756,18 @@ public class ShalimarGenerator : IIncrementalGenerator
                     if (componentDef is not null && SymbolEqualityComparer.Default.Equals(def, componentDef))
                     {
                         if (named.TypeArguments.Length == 1 && named.TypeArguments[0] is INamedTypeSymbol childProps)
-                            CollectLeaves(childProps, prefix: nextPrefix, output);
+                            CollectLeaves(rootPropsType, childProps, prefix: nextPrefix, output);
                         continue;
                     }
 
                     if (deferredDef is not null && SymbolEqualityComparer.Default.Equals(def, deferredDef))
-                        output.Add(new LeafRequirement(propsType, nextPrefix, ModeKind.Deferred));
+                        output.Add(new LeafRequirement(rootPropsType, nextPrefix, ModeKind.Deferred));
                     else if (lazyDef is not null && SymbolEqualityComparer.Default.Equals(def, lazyDef))
-                        output.Add(new LeafRequirement(propsType, nextPrefix, ModeKind.Lazy));
+                        output.Add(new LeafRequirement(rootPropsType, nextPrefix, ModeKind.Lazy));
                     else if (streamDef is not null && SymbolEqualityComparer.Default.Equals(def, streamDef))
-                        output.Add(new LeafRequirement(propsType, nextPrefix, ModeKind.Stream));
+                        output.Add(new LeafRequirement(rootPropsType, nextPrefix, ModeKind.Stream));
                     else if (sseDef is not null && SymbolEqualityComparer.Default.Equals(def, sseDef))
-                        output.Add(new LeafRequirement(propsType, nextPrefix, ModeKind.Sse));
+                        output.Add(new LeafRequirement(rootPropsType, nextPrefix, ModeKind.Sse));
                 }
             }
         }
@@ -1452,7 +1485,13 @@ public class ShalimarGenerator : IIncrementalGenerator
             .Select(c =>
             {
                 var normalized = c.Path == "/" ? "/" : "/" + c.Path.Trim('/');
-                var file = !string.IsNullOrWhiteSpace(c.TsxFile) ? c.TsxFile! : MapPathToRouteFile(normalized);
+                var tsx = c.TsxFile?.Replace('\\', '/');
+                var isV2 = !string.IsNullOrWhiteSpace(tsx) && tsx!.StartsWith("Features/V2/", StringComparison.Ordinal);
+                var file = isV2
+                    ? MapV2RouteModuleFile(normalized)
+                    : !string.IsNullOrWhiteSpace(c.TsxFile)
+                        ? c.TsxFile!
+                        : MapPathToRouteFile(normalized);
                 return (Path: normalized, FilePath: file);
             })
             .ToList();
@@ -1472,6 +1511,56 @@ public class ShalimarGenerator : IIncrementalGenerator
         csSb.AppendLine("*/");
 
         context.AddSource("ShalimarRoutes.g.cs", SourceText.From(csSb.ToString(), Encoding.UTF8));
+    }
+
+    private static void GenerateTypeScriptV2RouteModulesEmbedded(
+        SourceProductionContext context,
+        List<ComponentInfo> components)
+    {
+        // v2: generate route modules under Generated/V2Routes/** that render pure Features/V2/** components.
+        var v2 = components
+            .Where(c => !string.IsNullOrWhiteSpace(c.TsxFile) &&
+                        c.TsxFile!.Replace('\\', '/').StartsWith("Features/V2/", StringComparison.Ordinal))
+            .OrderBy(c => c.Path, StringComparer.Ordinal)
+            .ToList();
+
+        if (v2.Count == 0) return;
+
+        foreach (var c in v2)
+        {
+            var normalized = c.Path == "/" ? "/" : "/" + c.Path.Trim('/');
+            var modulePath = MapV2RouteModuleFile(normalized); // e.g. Generated/V2Routes/V2/Workbench/route.tsx
+            var featureFile = c.TsxFile!.Replace('\\', '/');    // e.g. Features/V2/Workbench/WorkbenchPage.tsx
+
+            var importPath = ToRelativeImport(fromFile: modulePath, toFile: featureFile);
+            var importNoExt = StripTsxExtension(importPath);
+
+            var typeName = c.TypeName;
+            var tsSb = new StringBuilder();
+            tsSb.AppendLine("// Generated by Shalimar - DO NOT EDIT");
+            tsSb.AppendLine("import { createFileRoute } from '@tanstack/react-router'");
+            tsSb.AppendLine($"import V2Component from '{importNoExt}'");
+            tsSb.AppendLine($"import type {{ {typeName} }} from '@generated/types'");
+            tsSb.AppendLine();
+            tsSb.AppendLine($"export const Route = createFileRoute('{normalized}')({{");
+            tsSb.AppendLine("    component: () => {");
+            tsSb.AppendLine($"        const props = (window as any).__SHALIMAR_PROPS__ as {typeName}");
+            tsSb.AppendLine("        return <V2Component {...(props as any)} />");
+            tsSb.AppendLine("    },");
+            tsSb.AppendLine("})");
+            tsSb.AppendLine();
+
+            var csSb = new StringBuilder();
+            csSb.AppendLine("// <auto-generated/>");
+            csSb.AppendLine("/*");
+            csSb.AppendLine($"SHALIMAR_TS: {modulePath}");
+            csSb.Append(tsSb);
+            csSb.AppendLine("END_SHALIMAR_TS");
+            csSb.AppendLine("*/");
+
+            // Use a stable hint name (Roslyn) derived from file path.
+            context.AddSource($"V2Route_{SanitizeHintName(modulePath)}.g.cs", SourceText.From(csSb.ToString(), Encoding.UTF8));
+        }
     }
 
     private sealed class RouteNode
@@ -1549,6 +1638,90 @@ public class ShalimarGenerator : IIncrementalGenerator
         });
 
         return $"Features/{string.Join("/", folders)}/route.tsx";
+    }
+
+    private static string MapV2RouteModuleFile(string normalizedPath)
+    {
+        // Place generated v2 route modules under Generated/ so they are never hand-edited.
+        // We mirror the same folder mapping as MapPathToRouteFile, but always emit "route.tsx".
+        if (normalizedPath == "/")
+            return "Generated/V2Routes/Home/route.tsx";
+
+        var parts = normalizedPath.Trim('/').Split(new[] { '/' }, StringSplitOptions.RemoveEmptyEntries);
+        var folders = parts.Select(p =>
+        {
+            if (p.StartsWith("{") && p.EndsWith("}") && p.Length > 2)
+            {
+                var inner = p.Substring(1, p.Length - 2);
+                var name = inner.Split(':')[0].TrimEnd('?');
+                return "$" + name;
+            }
+            return ToPascalCase(p);
+        });
+
+        return $"Generated/V2Routes/{string.Join("/", folders)}/route.tsx";
+    }
+
+    private static string ToRelativeImport(string fromFile, string toFile)
+    {
+        // Both inputs are repo-relative posix paths.
+        // Convert file paths to directory segments.
+        var fromDir = fromFile.Replace('\\', '/');
+        var toPath = toFile.Replace('\\', '/');
+        var fromParts = fromDir.Split(new[] { '/' }, StringSplitOptions.RemoveEmptyEntries).ToList();
+        var toParts = toPath.Split(new[] { '/' }, StringSplitOptions.RemoveEmptyEntries).ToList();
+
+        // Remove file name from fromParts (keep directory).
+        if (fromParts.Count > 0)
+            fromParts.RemoveAt(fromParts.Count - 1);
+
+        var common = 0;
+        while (common < fromParts.Count && common < toParts.Count &&
+               string.Equals(fromParts[common], toParts[common], StringComparison.Ordinal))
+        {
+            common++;
+        }
+
+        var up = fromParts.Count - common;
+        var sb = new StringBuilder();
+        sb.Append(up == 0 ? "." : string.Join("/", Enumerable.Repeat("..", up)));
+
+        var down = toParts.Skip(common).ToList();
+        if (down.Count > 0)
+        {
+            if (sb.Length > 0) sb.Append("/");
+            sb.Append(string.Join("/", down));
+        }
+
+        return sb.ToString();
+    }
+
+    private static string StripTsxExtension(string path)
+    {
+        if (path.EndsWith(".tsx", StringComparison.Ordinal))
+            return path.Substring(0, path.Length - 4);
+        if (path.EndsWith(".ts", StringComparison.Ordinal))
+            return path.Substring(0, path.Length - 3);
+        return path;
+    }
+
+    private static string SanitizeHintName(string filePath)
+    {
+        var sb = new StringBuilder(filePath.Length);
+        foreach (var ch in filePath)
+        {
+            if ((ch >= 'a' && ch <= 'z') ||
+                (ch >= 'A' && ch <= 'Z') ||
+                (ch >= '0' && ch <= '9'))
+            {
+                sb.Append(ch);
+            }
+            else
+            {
+                sb.Append('_');
+            }
+        }
+        return sb.ToString();
     }
 
     private static string ToPascalCase(string s)

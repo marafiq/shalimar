@@ -14,7 +14,7 @@ Shalimar is a .NET 10 + React framework where the **server defines everything** 
 # Restore dependencies
 ./scripts/restore.ps1
 
-# Full integration setup: pack → clean → install template → create IntegrationApp → build → verify
+# Full integration setup: pack → clean → install template → create sandbox app → build → verify
 ./scripts/integration.ps1
 
 # Quick iteration (skip packing, reuse existing artifacts)
@@ -29,8 +29,8 @@ Shalimar is a .NET 10 + React framework where the **server defines everything** 
 # Run only unit tests
 ./scripts/test.ps1 -Unit
 
-# Run IntegrationApp manually
-cd src/Shalimar.IntegrationApp && dotnet run
+# Run sandbox app manually
+cd src/Shalimar.SandboxApp && dotnet run
 
 # Pack all NuGet packages to artifacts/
 ./scripts/pack.ps1
@@ -79,7 +79,7 @@ Roslyn Source Generator
 | `Shalimar.RoslynAnalyzer` | Compile-time diagnostics | netstandard2.0 |
 | `Shalimar.Vite` | Vite dev server integration | net10.0 |
 | `Shalimar.Templates` | `dotnet new shalimar` template | NuGet template |
-| `Shalimar.IntegrationApp` | Test app created from template (gitignored) | net10.0 |
+| `Shalimar.SandboxApp` | Generated sandbox app created from template (gitignored) | net10.0 |
 
 **Roslyn Components (netstandard2.0):** SourceGenerator, RoslynAnalyzer, MSBuildTasks must target netstandard2.0 with LangVersion 12 for Roslyn compatibility.
 
@@ -90,7 +90,7 @@ Roslyn Source Generator
 dotnet test --filter "Category!=Integration"
 ```
 
-**E2E tests:** Playwright tests validate IntegrationApp
+**E2E tests:** Playwright tests validate the generated sandbox app
 ```bash
 dotnet test tests/Shalimar.IntegrationPlaywrightTests --filter "Category=Integration"
 ```
@@ -102,7 +102,7 @@ dotnet test tests/Shalimar.IntegrationPlaywrightTests --filter "Category=Integra
 - `Home_Renders` - `<h1>Welcome` visible
 - `No_Console_Errors` - Zero browser console errors
 
-**Prerequisites:** Run `./scripts/integration.ps1` before Playwright tests to create IntegrationApp.
+**Prerequisites:** Run `./scripts/integration.ps1` before Playwright tests to create the sandbox app.
 
 ## Delivery Model
 
@@ -142,5 +142,5 @@ dotnet run
 |---------|-----|
 | Old NuGet packages cached | Delete `~/.nuget/packages/shalimar*` |
 | Generated TypeScript missing | Check `dotnet build` output for errors |
-| routeTree.gen.ts missing | Run `bun run build` in IntegrationApp |
+| routeTree.gen.ts missing | Run `bun run build` in the sandbox app |
 | Playwright tests fail | Run `./scripts/integration.ps1` first |

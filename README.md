@@ -24,7 +24,7 @@ Open `https://localhost:5001` — you're running with HMR.
 
 ## Zero-step restore/build/test (framework repo)
 
-This repo is designed to support TDD for **every component** (Runtime, SourceGenerator, RoslynAnalyzer, MSBuildTasks, Vite) with unit tests, plus an end-to-end **template → IntegrationApp → Playwright** pipeline.
+This repo is designed to support TDD for **every component** (Runtime, SourceGenerator, RoslynAnalyzer, MSBuildTasks, Vite) with unit tests, plus an end-to-end **template → sandbox app → Playwright** pipeline.
 
 ### Canonical workflow (do not reinvent)
 
@@ -53,7 +53,7 @@ What it does:
 - **restore**: `dotnet restore` + `bun install`
 - **build**: `dotnet build`
 - **unit tests**: runs each unit test project under `tests/` (excludes Playwright by design)
-- **integration pipeline**: pack local NuGets → `dotnet new shalimar` → build IntegrationApp → run Playwright
+- **integration pipeline**: pack local NuGets → `dotnet new shalimar` → build the sandbox app → run Playwright
 
 Playwright artifacts:
 - **always**: `tests/TestResults/playwright/<TestName>/{console.log,page-errors.log}`
@@ -95,7 +95,7 @@ dotnet new shalimar -n MyApp
 
 ---
 
-## IntegrationApp dev loop (HMR)
+## Sandbox app dev loop (HMR)
 
 For framework development, the ideal local loop is:
 - keep the app running in **Development**

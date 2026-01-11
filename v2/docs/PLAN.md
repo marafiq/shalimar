@@ -140,7 +140,7 @@ Tests:
 - invalidation preserves UI slice
 - deferred prefetch respects policy and does not start SSE by default
 
-### Phase E — v2 IntegrationApp domain: Agent Workbench
+### Phase E — v2 sandbox app domain: Agent Workbench
 Server:
 - endpoints + FluentValidation with nested `RuleForEach` (e.g. `Tags[1]`, `Decisions[0].Options[1]`)
 Client:

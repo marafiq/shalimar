@@ -4,7 +4,7 @@ using Xunit;
 
 namespace Shalimar.IntegrationPlaywrightTests;
 
-public class IntegrationAppFixture : IAsyncLifetime
+public class SandboxAppFixture : IAsyncLifetime
 {
     private IPlaywright? _playwright;
     private IBrowser? _browser;
@@ -95,7 +95,7 @@ public class IntegrationAppFixture : IAsyncLifetime
 }
 
 [CollectionDefinition("Integration")]
-public class IntegrationCollection : ICollectionFixture<IntegrationAppFixture> { }
+public class IntegrationCollection : ICollectionFixture<SandboxAppFixture> { }
 
 public sealed class PlaywrightDiagnostics
 {

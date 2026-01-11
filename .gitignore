@@ -15,8 +15,8 @@ node_modules/
 bun.lockb
 *.bak.verify
 
-# Generated IntegrationApp (created from template)
-src/Shalimar.IntegrationApp/
+# Generated sandbox app (created from template)
+src/Shalimar.SandboxApp/
 
 # Vite build output
 wwwroot/dist/

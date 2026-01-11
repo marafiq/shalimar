@@ -7,11 +7,11 @@
       1) Restore (dotnet + bun)
       2) Build (Debug)
       3) Unit tests
-      4) Integration pipeline (pack -> dotnet new -> IntegrationApp build -> optional Playwright)
+      4) Integration pipeline (pack -> dotnet new -> generated app build -> optional Playwright)
 .PARAMETER SkipIntegration
-    Skip the template -> IntegrationApp pipeline.
+    Skip the template -> generated app pipeline.
 .PARAMETER SkipE2E
-    Skip Playwright E2E tests (still builds IntegrationApp via template).
+    Skip Playwright E2E tests (still builds the generated app via template).
 .PARAMETER Version
     Local package version used for pack/template install. Default: 1.0.0-local
 .PARAMETER Configuration
@@ -73,7 +73,7 @@ Write-Host "`n[3/4] Unit tests" -ForegroundColor Cyan
 & "$PSScriptRoot/test.ps1" -Unit
 
 if (-not $SkipIntegration) {
-    Write-Host "`n[4/4] Integration pipeline (template -> IntegrationApp)" -ForegroundColor Cyan
+    Write-Host "`n[4/4] Integration pipeline (template -> generated app)" -ForegroundColor Cyan
     $marker = if ($VerifyTsPropagation) { "SHALIMAR_VERIFY_TS_PROPAGATION__$(Get-Date -Format 'yyyyMMddHHmmssfff')" } else { $null }
     if ($SkipE2E) {
         if ($marker) {

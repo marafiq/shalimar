@@ -66,7 +66,7 @@ src/
 ├── Shalimar.Vite/             # Vite dev server integration
 ├── Shalimar.Templates/        # dotnet new template package
 │   └── templates/shalimar/Shared/runtime/  # runtime TS destination in generated app
-└── Shalimar.IntegrationApp/   # Generated test app (gitignored)
+└── Shalimar.SandboxApp/      # Generated sandbox app (gitignored)
 
 tests/
 ├── Shalimar.Runtime.Tests/
@@ -127,8 +127,8 @@ Failed TestName [duration]
 1. Packs all NuGet packages to `artifacts/`
 2. Clears NuGet cache for shalimar packages
 3. Installs template from local artifacts
-4. Creates IntegrationApp via `dotnet new shalimar`
-5. Builds IntegrationApp (dotnet + bun/vite)
+4. Creates sandbox app via `dotnet new shalimar`
+5. Builds sandbox app (dotnet + bun/vite)
 6. Runs Playwright E2E tests
 
 **Logs:**
@@ -234,7 +234,7 @@ Browser → Vite → JS only (HMR)
 | Old package cached | Delete `~/.nuget/packages/shalimar*` |
 | Generated missing | Check `dotnet build` output for errors |
 | routeTree missing | Check `bun run build` output |
-| Playwright fails | Run `./scripts/integration.ps1` (creates IntegrationApp) |
+| Playwright fails | Run `./scripts/integration.ps1` (creates sandbox app) |
 | bun workspace error | Delete `bun.lockb`, run `bun install` |
 | slnx not found | Ensure using .NET 10 SDK |
 
@@ -249,7 +249,7 @@ Browser → Vite → JS only (HMR)
 | Source Generator | `obj/Debug/net10.0/generated/` (EmitCompilerGeneratedFiles) |
 | MSBuild Task | Console output during build |
 | Playwright | Console output + `TestResults/` folder |
-| IntegrationApp | Console when running `dotnet run` |
+| Sandbox app | Console when running `dotnet run` |
 
 ---
 

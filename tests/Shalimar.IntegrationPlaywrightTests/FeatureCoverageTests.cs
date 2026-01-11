@@ -5,7 +5,7 @@ namespace Shalimar.IntegrationPlaywrightTests;
 
 [Collection("Integration")]
 [Trait("Category", "Integration")]
-public class FeatureCoverageTests(IntegrationAppFixture fixture)
+public class FeatureCoverageTests(SandboxAppFixture fixture)
 {
     [Fact]
     public async Task Refresh_Works_On_All_Component_Routes()
