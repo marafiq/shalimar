@@ -1718,13 +1718,15 @@ public class ShalimarGenerator : IIncrementalGenerator
         public string FunctionSuffixPascal { get; }
         public string TsAccessPathToHandle { get; }
         public ModeKind Mode { get; }
+        public string TsValueType { get; }
 
-        public V2Leaf(string rootTypeName, string functionSuffixPascal, string tsAccessPathToHandle, ModeKind mode)
+        public V2Leaf(string rootTypeName, string functionSuffixPascal, string tsAccessPathToHandle, ModeKind mode, string tsValueType)
         {
             RootTypeName = rootTypeName;
             FunctionSuffixPascal = functionSuffixPascal;
             TsAccessPathToHandle = tsAccessPathToHandle;
             Mode = mode;
+            TsValueType = tsValueType;
         }
     }
 
@@ -1780,14 +1782,43 @@ public class ShalimarGenerator : IIncrementalGenerator
                         continue;
                     }
 
+                    static string ToTsTypeRef(ITypeSymbol type)
+                    {
+                        if (type.SpecialType == SpecialType.System_String) return "string";
+                        if (type.SpecialType == SpecialType.System_Boolean) return "boolean";
+                        if (type.SpecialType is SpecialType.System_Int32 or SpecialType.System_Int64 or
+                            SpecialType.System_Single or SpecialType.System_Double or SpecialType.System_Decimal)
+                            return "number";
+
+                        if (type is INamedTypeSymbol n &&
+                            n.OriginalDefinition.SpecialType == SpecialType.System_Nullable_T &&
+                            n.TypeArguments.Length == 1)
+                            return $"{ToTsTypeRef(n.TypeArguments[0])} | null";
+
+                        // IEnumerable<T> => T[]
+                        if (type is INamedTypeSymbol en && en.IsGenericType)
+                        {
+                            var orig = en.OriginalDefinition;
+                            if (orig.SpecialType == SpecialType.System_Collections_Generic_IEnumerable_T &&
+                                en.TypeArguments.Length == 1)
+                                return $"{ToTsTypeRef(en.TypeArguments[0])}[]";
+                        }
+
+                        // Default: use the generated TS type name (interfaces/enums are emitted by name).
+                        return type.Name;
+                    }
+
+                    var valueType = named.TypeArguments.Length == 1 ? named.TypeArguments[0] : null;
+                    var tsValue = valueType is null ? "unknown" : ToTsTypeRef(valueType);
+
                     if (deferredDef is not null && SymbolEqualityComparer.Default.Equals(def, deferredDef))
-                        leaves.Add(new V2Leaf(rootProps.Name, nextSuffix, nextTsPrefix, ModeKind.Deferred));
+                        leaves.Add(new V2Leaf(rootProps.Name, nextSuffix, nextTsPrefix, ModeKind.Deferred, tsValue));
                     else if (lazyDef is not null && SymbolEqualityComparer.Default.Equals(def, lazyDef))
-                        leaves.Add(new V2Leaf(rootProps.Name, nextSuffix, nextTsPrefix, ModeKind.Lazy));
+                        leaves.Add(new V2Leaf(rootProps.Name, nextSuffix, nextTsPrefix, ModeKind.Lazy, tsValue));
                     else if (streamDef is not null && SymbolEqualityComparer.Default.Equals(def, streamDef))
-                        leaves.Add(new V2Leaf(rootProps.Name, nextSuffix, nextTsPrefix, ModeKind.Stream));
+                        leaves.Add(new V2Leaf(rootProps.Name, nextSuffix, nextTsPrefix, ModeKind.Stream, tsValue));
                     else if (sseDef is not null && SymbolEqualityComparer.Default.Equals(def, sseDef))
-                        leaves.Add(new V2Leaf(rootProps.Name, nextSuffix, nextTsPrefix, ModeKind.Sse));
+                        leaves.Add(new V2Leaf(rootProps.Name, nextSuffix, nextTsPrefix, ModeKind.Sse, tsValue));
                 }
             }
         }
@@ -1836,11 +1867,11 @@ public class ShalimarGenerator : IIncrementalGenerator
         foreach (var leaf in leaves.Where(l => l.Mode == ModeKind.Deferred))
         {
             var fn = $"use{leaf.RootTypeName}{leaf.FunctionSuffixPascal}Deferred";
-            tsSb.AppendLine($"export function {fn}<T = unknown>(): T {{");
+            tsSb.AppendLine($"export function {fn}(): {leaf.TsValueType} {{");
             tsSb.AppendLine($"    const props = getV2Props('{leaf.RootTypeName}')");
             tsSb.AppendLine("    if (!props) throw new Error('Missing v2 props (store not initialized)')");
             tsSb.AppendLine($"    const href = (props as any).{leaf.TsAccessPathToHandle}.href as string");
-            tsSb.AppendLine("    return useDeferred<T>({ href })");
+            tsSb.AppendLine($"    return useDeferred<{leaf.TsValueType}>({{ href }})");
             tsSb.AppendLine("}");
             tsSb.AppendLine();
         }
@@ -1848,11 +1879,11 @@ public class ShalimarGenerator : IIncrementalGenerator
         foreach (var leaf in leaves.Where(l => l.Mode == ModeKind.Lazy))
         {
             var fn = $"use{leaf.RootTypeName}{leaf.FunctionSuffixPascal}Lazy";
-            tsSb.AppendLine($"export function {fn}<T = unknown>() {{");
+            tsSb.AppendLine($"export function {fn}() {{");
             tsSb.AppendLine($"    const props = getV2Props('{leaf.RootTypeName}')");
             tsSb.AppendLine("    if (!props) throw new Error('Missing v2 props (store not initialized)')");
             tsSb.AppendLine($"    const href = (props as any).{leaf.TsAccessPathToHandle}.href as string");
-            tsSb.AppendLine("    return useLazy<T>({ href })");
+            tsSb.AppendLine($"    return useLazy<{leaf.TsValueType}>({{ href }})");
             tsSb.AppendLine("}");
             tsSb.AppendLine();
         }
@@ -1860,11 +1891,11 @@ public class ShalimarGenerator : IIncrementalGenerator
         foreach (var leaf in leaves.Where(l => l.Mode == ModeKind.Stream))
         {
             var fn = $"use{leaf.RootTypeName}{leaf.FunctionSuffixPascal}Stream";
-            tsSb.AppendLine($"export function {fn}<TItem = unknown>(opts?: {{ maxItems?: number }}) {{");
+            tsSb.AppendLine($"export function {fn}(opts?: {{ maxItems?: number }}) {{");
             tsSb.AppendLine($"    const props = getV2Props('{leaf.RootTypeName}')");
             tsSb.AppendLine("    if (!props) throw new Error('Missing v2 props (store not initialized)')");
             tsSb.AppendLine($"    const href = (props as any).{leaf.TsAccessPathToHandle}.href as string");
-            tsSb.AppendLine("    return useStream<TItem>({ href }, opts)");
+            tsSb.AppendLine($"    return useStream<{leaf.TsValueType}>({{ href }}, opts)");
             tsSb.AppendLine("}");
             tsSb.AppendLine();
         }
@@ -1872,11 +1903,11 @@ public class ShalimarGenerator : IIncrementalGenerator
         foreach (var leaf in leaves.Where(l => l.Mode == ModeKind.Sse))
         {
             var fn = $"use{leaf.RootTypeName}{leaf.FunctionSuffixPascal}Sse";
-            tsSb.AppendLine($"export function {fn}<TEvent = unknown>(opts?: {{ maxEvents?: number }}) {{");
+            tsSb.AppendLine($"export function {fn}(opts?: {{ maxEvents?: number }}) {{");
             tsSb.AppendLine($"    const props = getV2Props('{leaf.RootTypeName}')");
             tsSb.AppendLine("    if (!props) throw new Error('Missing v2 props (store not initialized)')");
             tsSb.AppendLine($"    const href = (props as any).{leaf.TsAccessPathToHandle}.href as string");
-            tsSb.AppendLine("    return useSse<TEvent>({ href }, opts)");
+            tsSb.AppendLine($"    return useSse<{leaf.TsValueType}>({{ href }}, opts)");
             tsSb.AppendLine("}");
             tsSb.AppendLine();
         }

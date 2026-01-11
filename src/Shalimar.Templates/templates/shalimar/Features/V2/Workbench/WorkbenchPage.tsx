@@ -18,7 +18,7 @@ function SummaryCard(props: { title: string; value: string; hint?: string }) {
 }
 
 function Summary() {
-    const summary = useWorkbenchPropsSummaryDeferred<{ openTasks: number; overdueTasks: number; activeAgents: number }>()
+    const summary = useWorkbenchPropsSummaryDeferred()
     return (
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
             <SummaryCard title="Open tasks" value={String(summary.openTasks)} />
@@ -29,7 +29,7 @@ function Summary() {
 }
 
 function AgentInsights() {
-    const insights = useWorkbenchPropsAgentPanelInsightsDeferred<{ headline: string; suggestions: string[] }>()
+    const insights = useWorkbenchPropsAgentPanelInsightsDeferred()
     return (
         <div className="rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-800 dark:bg-zinc-950/40">
             <div className="flex items-start justify-between gap-3">
