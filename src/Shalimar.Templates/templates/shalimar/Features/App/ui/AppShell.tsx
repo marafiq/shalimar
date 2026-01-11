@@ -103,6 +103,13 @@ export function AppShell(props: { children: React.ReactNode; environment: string
                                 />
                                 <NavItem
                                     collapsed={ui.sidebarCollapsed}
+                                    to="/v2/tasks"
+                                    active={pathname.startsWith('/v2/tasks')}
+                                    label="V2 Tasks"
+                                    icon={<IconTasks className="h-4 w-4" />}
+                                />
+                                <NavItem
+                                    collapsed={ui.sidebarCollapsed}
                                     to="/tasks"
                                     active={pathname === '/tasks'}
                                     label="Tasks"
@@ -183,6 +190,13 @@ export function AppShell(props: { children: React.ReactNode; environment: string
                                             to="/v2/workbench"
                                             active={pathname.startsWith('/v2/workbench')}
                                             label="V2 Workbench"
+                                            icon={<IconTasks className="h-4 w-4" />}
+                                            onNavigate={() => setMobileNavOpen(false)}
+                                        />
+                                        <NavItem
+                                            to="/v2/tasks"
+                                            active={pathname.startsWith('/v2/tasks')}
+                                            label="V2 Tasks"
                                             icon={<IconTasks className="h-4 w-4" />}
                                             onNavigate={() => setMobileNavOpen(false)}
                                         />

@@ -6,6 +6,7 @@ using ShalimarApp.Features.Settings;
 using ShalimarApp.Features.Tasks;
 using ShalimarApp.Features.Tasks.Board;
 using ShalimarApp.Features.V2.Workbench;
+using ShalimarApp.Features.V2.Tasks;
 using FluentValidation;
 using Shalimar;
 using Shalimar.Vite;
@@ -199,6 +200,77 @@ app.MapGet("/v2/workbench/agent/insights", (CrmRepository repo) =>
     .ForNode<WorkbenchProps>(p => p.AgentPanel.Props.Insights)
     .AsDeferred<AgentInsightsDto>();
 
+static string BuildQueryHref(string path, (string Key, string? Value)[] items)
+{
+    var parts = items
+        .Where(i => !string.IsNullOrWhiteSpace(i.Value))
+        .Select(i => $"{Uri.EscapeDataString(i.Key)}={Uri.EscapeDataString(i.Value!)}")
+        .ToList();
+    return parts.Count == 0 ? path : path + "?" + string.Join("&", parts);
+}
+
+app.MapGet("/v2/tasks", async (HttpContext http, HttpRequest req, CrmRepository repo) =>
+{
+    string? GetString(string key)
+    {
+        var raw = req.Query[key].ToString();
+        return string.IsNullOrWhiteSpace(raw) ? null : raw;
+    }
+
+    var q = GetString("q");
+    var status = GetString("status");
+    var priority = GetString("priority");
+    var epicId = GetString("epicId");
+    var page = GetString("page");
+    var pageSize = GetString("pageSize");
+
+    var href = BuildQueryHref(
+        "/v2/tasks/grid",
+        new[]
+        {
+            ("q", q),
+            ("status", status),
+            ("priority", priority),
+            ("epicId", epicId),
+            ("page", page),
+            ("pageSize", pageSize),
+        });
+
+    var props = new V2TasksProps(
+        Title: "V2 Tasks",
+        Crm: repo.Snapshot(),
+        Grid: new Deferred<CrmTasksGridDto>(href));
+
+    return ShalimarTypedResults.Component(MakeContext(app), props, "Shalimar App");
+}).ForTsxFile("Features/V2/Tasks/TasksPage.tsx").AsComponent<V2TasksProps>();
+
+app.MapGet("/v2/tasks/grid", (HttpRequest req, CrmRepository repo) =>
+{
+    static int GetInt(HttpRequest req, string key, int fallback)
+    {
+        var raw = req.Query[key].ToString();
+        return int.TryParse(raw, out var v) ? v : fallback;
+    }
+
+    static string? GetString(HttpRequest req, string key)
+    {
+        var raw = req.Query[key].ToString();
+        return string.IsNullOrWhiteSpace(raw) ? null : raw;
+    }
+
+    var page = GetInt(req, "page", 1);
+    var pageSize = GetInt(req, "pageSize", 20);
+    var q = GetString(req, "q");
+    var status = GetString(req, "status");
+    var priority = GetString(req, "priority");
+    var epicId = GetString(req, "epicId");
+
+    return Results.Ok(repo.TasksGrid(page, pageSize, q, status, priority, epicId));
+})
+    .ForComponent<V2TasksProps>()
+    .ForNode<V2TasksProps>(p => p.Grid)
+    .AsDeferred<CrmTasksGridDto>();
+
 static async Task WriteSseAsync<T>(HttpContext http, T data, CancellationToken ct)
 {
     // Default JSON options are camelCase in Shalimar, but here we keep it explicit for SSE payloads.
@@ -308,6 +380,7 @@ app.MapPost("/crm/tasks", async (CrmRepository repo, IValidator<CreateTaskReques
 })
     .Invalidates<DashboardAgentPanelProps>()
     .Invalidates<TasksGridProps>()
+    .Invalidates<V2TasksProps>()
     .AsMutation<CreateTaskRequest, TaskDto>();
 
 app.MapPatch("/crm/tasks/{taskId}", async (CrmRepository repo, IValidator<UpdateTaskRequest> v, string taskId, UpdateTaskRequest req) =>

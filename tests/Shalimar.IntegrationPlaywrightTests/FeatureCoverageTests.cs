@@ -8,6 +8,43 @@ namespace Shalimar.IntegrationPlaywrightTests;
 public class FeatureCoverageTests(SandboxAppFixture fixture)
 {
     [Fact]
+    public async Task V2_Tasks_Create_Refreshes_Grid_Via_Invalidation()
+    {
+        var (context, page, diag) = await fixture.NewPageAsync(nameof(V2_Tasks_Create_Refreshes_Grid_Via_Invalidation));
+        try
+        {
+            await fixture.ResetCrmAsync();
+
+            await page.GotoAsync(fixture.BaseUrl + "/v2/tasks");
+
+            await page.GetByTestId("v2-open-create").ClickAsync();
+            await page.GetByTestId("v2-create-save").ClickAsync();
+
+            // Server-truth validation should surface a FluentValidation message.
+            await page.GetByText("must not be empty", new() { Exact = false }).WaitForAsync();
+
+            var title = "V2 created task (pw)";
+            await page.GetByLabel("Title").FillAsync(title);
+            await page.GetByTestId("v2-create-save").ClickAsync();
+
+            await page.GetByTestId("toast").GetByText("Task created").WaitForAsync();
+
+            // Grid refreshes via invalidation (no navigation required).
+            await page.GetByTestId("v2-grid-row").GetByText(title).WaitForAsync();
+        }
+        catch (Exception ex)
+        {
+            await diag.CaptureFailureAsync(page, ex);
+            throw;
+        }
+        finally
+        {
+            await diag.FlushAsync();
+            await context.DisposeAsync();
+        }
+    }
+
+    [Fact]
     public async Task Refresh_Works_On_All_Component_Routes()
     {
         var (context, page, diag) = await fixture.NewPageAsync(nameof(Refresh_Works_On_All_Component_Routes));
@@ -20,6 +57,8 @@ public class FeatureCoverageTests(SandboxAppFixture fixture)
                 ("/", "Welcome to Shalimar"),
                 ("/tasks", "Tasks"),
                 ("/tasks/board", "Board"),
+                ("/v2/workbench", "V2 Workbench"),
+                ("/v2/tasks", "V2 Tasks"),
                 ("/accounts", "Accounts"),
                 ("/accounts/a_2", "Account"),
                 ("/settings", "Settings"),
