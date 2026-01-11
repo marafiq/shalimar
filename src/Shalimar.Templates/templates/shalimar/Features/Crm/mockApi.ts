@@ -1,4 +1,17 @@
-import type { Account, ActivityItem, Contact, Id, Task, TaskActor, TaskMessage, TaskStatus, User } from './types'
+import type {
+    Account,
+    ActivityItem,
+    Contact,
+    Epic,
+    Id,
+    Task,
+    TaskActor,
+    TaskArtifact,
+    TaskDecision,
+    TaskMessage,
+    TaskStatus,
+    User,
+} from './types'
 
 function nowIso() {
     return new Date().toISOString()
@@ -31,15 +44,35 @@ const contacts: Contact[] = [
     { id: 'c_4', accountId: 'a_3', name: 'Taylor Kim', title: 'Owner', email: 'taylor@fabrikam.example' },
 ]
 
+let epics: Epic[] = [
+    {
+        id: 'e_1',
+        title: 'Contoso: Inbound lead → first meeting',
+        description: 'Qualify, align stakeholders, and schedule a discovery call.',
+        status: 'active',
+        updatedAt: nowIso(),
+    },
+    {
+        id: 'e_2',
+        title: 'Northwind: QBR + renewal readiness',
+        description: 'Prepare QBR artifacts, risks, and next-quarter plan.',
+        status: 'active',
+        updatedAt: nowIso(),
+    },
+]
+
 let tasks: Task[] = [
     {
         id: 't_1',
         title: 'Qualify inbound lead (Contoso)',
         status: 'todo',
         priority: 'high',
+        epicId: 'e_1',
         accountId: 'a_2',
         assigneeId: 'u_1',
+        collaboratorIds: ['u_2'],
         dueAt: new Date(Date.now() + 1000 * 60 * 60 * 24).toISOString(),
+        estimateMinutes: 45,
         tags: ['lead', 'email'],
         updatedAt: nowIso(),
     },
@@ -48,9 +81,12 @@ let tasks: Task[] = [
         title: 'Prepare QBR deck (Northwind)',
         status: 'in_progress',
         priority: 'medium',
+        epicId: 'e_2',
         accountId: 'a_1',
         assigneeId: 'u_2',
+        collaboratorIds: ['u_1', 'u_3'],
         dueAt: new Date(Date.now() + 1000 * 60 * 60 * 24 * 5).toISOString(),
+        estimateMinutes: 180,
         tags: ['qbr'],
         updatedAt: nowIso(),
     },
@@ -61,6 +97,7 @@ let tasks: Task[] = [
         priority: 'low',
         accountId: 'a_3',
         assigneeId: 'u_3',
+        collaboratorIds: [],
         tags: ['renewal'],
         updatedAt: nowIso(),
     },
@@ -69,8 +106,11 @@ let tasks: Task[] = [
         title: 'Resolve pricing blocker (Contoso)',
         status: 'blocked',
         priority: 'high',
+        epicId: 'e_1',
         accountId: 'a_2',
         assigneeId: 'u_2',
+        collaboratorIds: ['u_1'],
+        estimateMinutes: 60,
         tags: ['pricing', 'legal'],
         updatedAt: nowIso(),
     },
@@ -79,8 +119,11 @@ let tasks: Task[] = [
         title: 'Post-call notes (Northwind)',
         status: 'done',
         priority: 'medium',
+        epicId: 'e_2',
         accountId: 'a_1',
         assigneeId: 'u_1',
+        collaboratorIds: [],
+        estimateMinutes: 30,
         tags: ['notes'],
         updatedAt: nowIso(),
     },
@@ -113,6 +156,47 @@ let messagesByTask: Record<Id, TaskMessage[]> = {
             actor: 'human',
             author: 'Noah Patel',
             body: 'Pull last quarter usage + renewal risks. Highlight top 3 wins and 2 blockers.',
+        },
+    ],
+}
+
+let artifactsByTask: Record<Id, TaskArtifact[]> = {
+    t_1: [
+        {
+            id: 'a_1',
+            taskId: 't_1',
+            ts: nowIso(),
+            kind: 'email',
+            title: 'Draft outreach email',
+            content:
+                'Hi Riley — thanks for reaching out. I’d love to learn more about what Contoso is evaluating. Would a 15‑minute call tomorrow work?',
+            createdBy: 'agent',
+        },
+    ],
+    t_2: [
+        {
+            id: 'a_2',
+            taskId: 't_2',
+            ts: nowIso(),
+            kind: 'plan',
+            title: 'QBR outline',
+            content: '1) Outcomes 2) Usage 3) Risks 4) Roadmap 5) Next steps',
+            createdBy: 'human',
+        },
+    ],
+}
+
+let decisionsByTask: Record<Id, TaskDecision[]> = {
+    t_1: [
+        {
+            id: 'd_1',
+            taskId: 't_1',
+            ts: nowIso(),
+            question: 'Who is the primary contact for qualification?',
+            options: ['Riley (VP Eng)', 'Casey (Procurement)', 'Jordan (Buyer)'],
+            outcome: 'Riley (VP Eng)',
+            rationale: 'They own technical evaluation and can schedule stakeholders quickly.',
+            madeBy: 'human',
         },
     ],
 }
@@ -150,6 +234,16 @@ export async function listTasks(): Promise<Task[]> {
     return tasks.toSorted((a, b) => b.updatedAt.localeCompare(a.updatedAt))
 }
 
+export async function listEpics(): Promise<Epic[]> {
+    await delay(180)
+    return epics.toSorted((a, b) => b.updatedAt.localeCompare(a.updatedAt))
+}
+
+export async function getEpic(id: Id): Promise<Epic | undefined> {
+    await delay(160)
+    return epics.find((e) => e.id === id)
+}
+
 export async function getTask(id: Id): Promise<Task | undefined> {
     await delay(200)
     return tasks.find((t) => t.id === id)
@@ -167,7 +261,9 @@ export async function updateTaskStatus(id: Id, status: TaskStatus): Promise<Task
 
 export async function updateTask(
     id: Id,
-    patch: Partial<Pick<Task, 'title' | 'priority' | 'assigneeId' | 'accountId' | 'dueAt'>>,
+    patch: Partial<
+        Pick<Task, 'title' | 'priority' | 'assigneeId' | 'accountId' | 'dueAt' | 'estimateMinutes' | 'collaboratorIds' | 'epicId'>
+    >,
 ): Promise<Task | undefined> {
     await delay(220)
     const t = tasks.find((x) => x.id === id)
@@ -186,6 +282,7 @@ export async function createTask(title: string, accountId?: Id): Promise<Task> {
         status: 'todo',
         priority: 'medium',
         accountId,
+        collaboratorIds: [],
         tags: [],
         updatedAt: nowIso(),
     }
@@ -207,6 +304,39 @@ export async function createTask(title: string, accountId?: Id): Promise<Task> {
 export async function listTaskMessages(taskId: Id): Promise<TaskMessage[]> {
     await delay(180)
     return (messagesByTask[taskId] ?? []).toSorted((a, b) => a.ts.localeCompare(b.ts))
+}
+
+export async function listTaskArtifacts(taskId: Id): Promise<TaskArtifact[]> {
+    await delay(180)
+    return (artifactsByTask[taskId] ?? []).toSorted((a, b) => b.ts.localeCompare(a.ts))
+}
+
+export async function listTaskDecisions(taskId: Id): Promise<TaskDecision[]> {
+    await delay(180)
+    return (decisionsByTask[taskId] ?? []).toSorted((a, b) => b.ts.localeCompare(a.ts))
+}
+
+export async function addTaskArtifact(taskId: Id, actor: TaskActor, kind: TaskArtifact['kind'], title: string, content: string): Promise<TaskArtifact> {
+    await delay(160)
+    const a: TaskArtifact = { id: makeId('art'), taskId, ts: nowIso(), kind, title, content, createdBy: actor }
+    artifactsByTask[taskId] = [a, ...(artifactsByTask[taskId] ?? [])]
+    pushActivity(`${actor === 'agent' ? 'Agent' : 'Human'} created artifact: ${title}`)
+    return a
+}
+
+export async function addTaskDecision(
+    taskId: Id,
+    actor: TaskActor,
+    question: string,
+    options: string[],
+    outcome: string,
+    rationale?: string,
+): Promise<TaskDecision> {
+    await delay(160)
+    const d: TaskDecision = { id: makeId('dec'), taskId, ts: nowIso(), question, options, outcome, rationale, madeBy: actor }
+    decisionsByTask[taskId] = [d, ...(decisionsByTask[taskId] ?? [])]
+    pushActivity(`${actor === 'agent' ? 'Agent' : 'Human'} recorded decision: ${outcome}`)
+    return d
 }
 
 export async function postTaskMessage(taskId: Id, actor: TaskActor, body: string): Promise<TaskMessage> {
