@@ -1,22 +1,22 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <PackageType>Template</PackageType>
-    <PackageId>Shalimar.Templates</PackageId>
-    <Description>Project templates for Shalimar framework</Description>
     <TargetFramework>netstandard2.0</TargetFramework>
-    <IncludeContentInPack>true</IncludeContentInPack>
-    <IncludeBuildOutput>false</IncludeBuildOutput>
-    <ContentTargetFolders>content</ContentTargetFolders>
-    <NoWarn>$(NoWarn);NU5128;NU5119</NoWarn>
-    <SuppressDependenciesWhenPacking>true</SuppressDependenciesWhenPacking>
+    <LangVersion>12</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
+    <IsPackable>true</IsPackable>
+    <PackageType>Template</PackageType>
+    <NoWarn>$(NoWarn);NU5128</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>
-    <Content Include="templates\**\*" Exclude="templates\**\bin\**;templates\**\obj\**;templates\**\node_modules\**\*.map" />
-    <!-- Single source of truth: pack runtime TS directly from Shalimar.Runtime -->
-    <Content Include="..\Shalimar.Runtime\ts\src\**\*"
-             Pack="true"
-             PackagePath="content/templates/shalimar/Shared/runtime/%(RecursiveDir)%(Filename)%(Extension)" />
-    <Compile Remove="**\*" />
+    <None Include="templates\**\*" Pack="true" PackagePath="templates\" />
+  </ItemGroup>
+
+  <!-- Template sources are content only; do not compile them as part of this netstandard project. -->
+  <ItemGroup>
+    <Compile Remove="templates\**\*.cs" />
   </ItemGroup>
 </Project>
+

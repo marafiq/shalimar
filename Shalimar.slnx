@@ -13,6 +13,5 @@
     <Project Path="tests/Shalimar.RoslynAnalyzer.Tests/Shalimar.RoslynAnalyzer.Tests.csproj" />
     <Project Path="tests/Shalimar.MSBuildTasks.Tests/Shalimar.MSBuildTasks.Tests.csproj" />
     <Project Path="tests/Shalimar.Vite.Tests/Shalimar.Vite.Tests.csproj" />
-    <Project Path="tests/Shalimar.IntegrationPlaywrightTests/Shalimar.IntegrationPlaywrightTests.csproj" />
   </Folder>
 </Solution>

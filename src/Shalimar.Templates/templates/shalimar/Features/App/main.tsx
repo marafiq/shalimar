@@ -1,27 +1,23 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { RouterProvider, createRouter } from '@tanstack/react-router'
-import { routeTree } from '@generated/routeTree.gen'
 import { Provider } from '@react-spectrum/s2'
+import { routeTree } from '@generated/routeTree.gen'
 import './styles.css'
 import type { AppContext } from './appContext'
 
-// Get context from server-injected globals
 declare global {
     interface Window {
         __SHALIMAR_CONTEXT__?: AppContext
-        __SHALIMAR_VERSION__?: string
         __SHALIMAR_PROPS__?: unknown
     }
 }
 
-// Create router instance
 const router = createRouter({
     routeTree,
     context: (typeof window !== 'undefined' ? window.__SHALIMAR_CONTEXT__ : undefined) as AppContext,
 })
 
-// Type registration for router
 declare module '@tanstack/react-router' {
     interface Register {
         router: typeof router
@@ -30,8 +26,7 @@ declare module '@tanstack/react-router' {
 
 const rootElement = document.getElementById('root')!
 if (!rootElement.innerHTML) {
-    const root = createRoot(rootElement)
-    root.render(
+    createRoot(rootElement).render(
         <StrictMode>
             <Provider background="base">
                 <RouterProvider router={router} />

@@ -1,17 +1,18 @@
 {
   "compilerOptions": {
-    "target": "ES2024",
+    "target": "ES2022",
+    "useDefineForClassFields": true,
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
     "module": "ESNext",
-    "moduleResolution": "bundler",
+    "skipLibCheck": true,
+    "moduleResolution": "Bundler",
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "noEmit": true,
     "jsx": "react-jsx",
     "strict": true,
-    "skipLibCheck": true,
-    "noEmit": true,
-    "paths": {
-      "@generated/*": ["./Generated/*"],
-      "@shalimar/runtime": ["./Shared/runtime"],
-      "@shalimar/runtime/*": ["./Shared/runtime/*"]
-    }
+    "types": ["vite/client"]
   },
-  "include": ["Client", "Features", "Generated", "Shared"]
+  "include": ["Features/**/*", "Generated/**/*"]
 }
+

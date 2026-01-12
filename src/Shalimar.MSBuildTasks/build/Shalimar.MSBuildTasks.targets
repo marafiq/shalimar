@@ -5,6 +5,6 @@
   <Target Name="ShalimarExtractTypeScript" AfterTargets="CoreCompile">
     <ExtractTypeScript
       OutputDirectory="$(ProjectDir)Generated"
-      IntermediateDirectory="$(IntermediateOutputPath)" />
+      IntermediateDirectory="$(BaseIntermediateOutputPath)" />
   </Target>
 </Project>

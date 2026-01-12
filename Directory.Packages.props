@@ -3,6 +3,13 @@
     <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
   </PropertyGroup>
   <ItemGroup>
+    <!-- Shalimar (local development) -->
+    <PackageVersion Include="Shalimar.Runtime" Version="1.0.0-local" />
+    <PackageVersion Include="Shalimar.SourceGenerator" Version="1.0.0-local" />
+    <PackageVersion Include="Shalimar.MSBuildTasks" Version="1.0.0-local" />
+    <PackageVersion Include="Shalimar.RoslynAnalyzer" Version="1.0.0-local" />
+    <PackageVersion Include="Shalimar.Vite" Version="1.0.0-local" />
+
     <!-- Roslyn -->
     <PackageVersion Include="Microsoft.CodeAnalysis.CSharp" Version="4.12.0" />
     <PackageVersion Include="Microsoft.CodeAnalysis.Analyzers" Version="3.3.4" />

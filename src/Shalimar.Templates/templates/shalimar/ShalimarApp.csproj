@@ -3,18 +3,23 @@
     <TargetFramework>net10.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
-    <!-- Template is standalone, not using repo's CPM -->
-    <ManagePackageVersionsCentrally>false</ManagePackageVersionsCentrally>
-    <!-- Enable source generator output to disk for TypeScript extraction -->
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <!-- Required so MSBuild can read generator outputs and extract embedded TS into Generated/ -->
     <EmitCompilerGeneratedFiles>true</EmitCompilerGeneratedFiles>
+    <CompilerGeneratedFilesOutputPath>$(BaseIntermediateOutputPath)generated</CompilerGeneratedFilesOutputPath>
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="FluentValidation.DependencyInjectionExtensions" Version="12.1.1" />
-    <PackageReference Include="Shalimar.Runtime" Version="1.0.0-local" />
-    <PackageReference Include="Shalimar.Vite" Version="1.0.0-local" />
-    <PackageReference Include="Shalimar.SourceGenerator" Version="1.0.0-local" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
-    <PackageReference Include="Shalimar.RoslynAnalyzer" Version="1.0.0-local" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
-    <PackageReference Include="Shalimar.MSBuildTasks" Version="1.0.0-local" />
+    <PackageReference Include="Shalimar.Runtime" />
+    <PackageReference Include="Shalimar.SourceGenerator" PrivateAssets="all" />
+    <PackageReference Include="Shalimar.MSBuildTasks" PrivateAssets="all" />
+    <PackageReference Include="Shalimar.RoslynAnalyzer" PrivateAssets="all" />
+    <PackageReference Include="Shalimar.Vite" />
+    <PackageReference Include="FluentValidation" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Include="Shared/runtime/**" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>
+

@@ -16,14 +16,15 @@
     "zod": "4.1.11"
   },
   "devDependencies": {
+    "@tailwindcss/vite": "4.1.18",
     "@tanstack/router-plugin": "1.147.1",
     "@tanstack/virtual-file-routes": "1.145.4",
     "@types/react": "19.2.8",
     "@types/react-dom": "19.2.3",
-    "@tailwindcss/vite": "4.1.18",
     "@vitejs/plugin-react": "5.1.2",
     "tailwindcss": "4.1.18",
     "typescript": "5.9.3",
     "vite": "7.3.1"
   }
 }
+
