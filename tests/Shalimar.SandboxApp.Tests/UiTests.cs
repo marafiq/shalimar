@@ -28,14 +28,16 @@ public class UiTests(SandboxAppFixture fixture)
     {
         await fixture.ResetAsync();
         var (context, page) = await fixture.NewPageAsync();
+        var capture = true;
         var errors = new List<string>();
         page.Console += (_, m) =>
         {
+            if (!capture) return;
             if (m.Type != "error") return;
             if (ShouldIgnoreConsoleError(m.Text)) return;
             errors.Add($"console: {m.Text}");
         };
-        page.PageError += (_, e) => errors.Add($"pageerror: {e}");
+        page.PageError += (_, e) => { if (capture) errors.Add($"pageerror: {e}"); };
         try
         {
             await page.GotoAsync($"{fixture.BaseUrl}/dashboard");
@@ -53,6 +55,7 @@ public class UiTests(SandboxAppFixture fixture)
         }
         finally
         {
+            capture = false;
             if (errors.Count > 0)
                 throw new Exception(string.Join("\n", errors));
             await context.DisposeAsync();
@@ -64,14 +67,16 @@ public class UiTests(SandboxAppFixture fixture)
     {
         await fixture.ResetAsync();
         var (context, page) = await fixture.NewPageAsync();
+        var capture = true;
         var errors = new List<string>();
         page.Console += (_, m) =>
         {
+            if (!capture) return;
             if (m.Type != "error") return;
             if (ShouldIgnoreConsoleError(m.Text)) return;
             errors.Add($"console: {m.Text}");
         };
-        page.PageError += (_, e) => errors.Add($"pageerror: {e}");
+        page.PageError += (_, e) => { if (capture) errors.Add($"pageerror: {e}"); };
         try
         {
             await page.GotoAsync($"{fixture.BaseUrl}/residents?pane=new");
@@ -92,6 +97,51 @@ public class UiTests(SandboxAppFixture fixture)
         }
         finally
         {
+            capture = false;
+            if (errors.Count > 0)
+                throw new Exception(string.Join("\n", errors));
+            await context.DisposeAsync();
+        }
+    }
+
+    [Fact]
+    public async Task Incidents_Create_Shows_Validation_Then_Succeeds()
+    {
+        await fixture.ResetAsync();
+        var (context, page) = await fixture.NewPageAsync();
+        var capture = true;
+        var errors = new List<string>();
+        page.Console += (_, m) =>
+        {
+            if (!capture) return;
+            if (m.Type != "error") return;
+            if (ShouldIgnoreConsoleError(m.Text)) return;
+            errors.Add($"console: {m.Text}");
+        };
+        page.PageError += (_, e) => { if (capture) errors.Add($"pageerror: {e}"); };
+        try
+        {
+            await page.GotoAsync($"{fixture.BaseUrl}/incidents?pane=new");
+            await page.WaitForLoadStateAsync(LoadState.NetworkIdle);
+            await WaitForReactAsync(page);
+
+            await page.GetByTestId("incident-save").ClickAsync();
+            await page.GetByText("'Kind' must not be empty.", new() { Exact = true }).WaitForAsync();
+
+            await page.GetByLabel("Kind").FillAsync("Fall");
+            await page.GetByLabel("Summary").FillAsync("Unwitnessed fall; vitals stable.");
+            await page.GetByLabel("Status").FillAsync("open");
+            await page.GetByLabel("Resident id").FillAsync("r_1");
+
+            await page.GetByTestId("incident-save").ClickAsync();
+            await page.WaitForLoadStateAsync(LoadState.NetworkIdle);
+            await WaitForReactAsync(page);
+
+            await page.GetByTestId("incident-row").GetByText("Fall").First.WaitForAsync();
+        }
+        finally
+        {
+            capture = false;
             if (errors.Count > 0)
                 throw new Exception(string.Join("\n", errors));
             await context.DisposeAsync();
@@ -103,14 +153,16 @@ public class UiTests(SandboxAppFixture fixture)
     {
         await fixture.ResetAsync();
         var (context, page) = await fixture.NewPageAsync();
+        var capture = true;
         var errors = new List<string>();
         page.Console += (_, m) =>
         {
+            if (!capture) return;
             if (m.Type != "error") return;
             if (ShouldIgnoreConsoleError(m.Text)) return;
             errors.Add($"console: {m.Text}");
         };
-        page.PageError += (_, e) => errors.Add($"pageerror: {e}");
+        page.PageError += (_, e) => { if (capture) errors.Add($"pageerror: {e}"); };
         try
         {
             await page.GotoAsync($"{fixture.BaseUrl}/dashboard");
@@ -123,6 +175,11 @@ public class UiTests(SandboxAppFixture fixture)
             await WaitForReactAsync(page);
             await page.ScreenshotAsync(new() { Path = Path.Combine("Snapshots", "seniorliving-residents.png"), FullPage = true });
 
+            await page.GotoAsync($"{fixture.BaseUrl}/incidents");
+            await page.WaitForLoadStateAsync(LoadState.NetworkIdle);
+            await WaitForReactAsync(page);
+            await page.ScreenshotAsync(new() { Path = Path.Combine("Snapshots", "seniorliving-incidents.png"), FullPage = true });
+
             await page.GotoAsync($"{fixture.BaseUrl}/dashboard");
             await page.WaitForLoadStateAsync(LoadState.NetworkIdle);
             await WaitForReactAsync(page);
@@ -132,6 +189,7 @@ public class UiTests(SandboxAppFixture fixture)
         }
         finally
         {
+            capture = false;
             if (errors.Count > 0)
                 throw new Exception(string.Join("\n", errors));
             await context.DisposeAsync();

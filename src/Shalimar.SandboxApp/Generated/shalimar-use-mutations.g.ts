@@ -2,32 +2,46 @@
 import type { z } from 'zod'
 import type { ValidationErrors, MutationResult } from './shalimar-mutations.g'
 import {
+    mutateIncidents,
+    mutateIncidentsById,
+    mutateIncidentsByIdDelete,
     mutateResidents,
     mutateResidentsById,
     mutateResidentsByIdDelete,
 } from './shalimar-mutations.g'
 import {
+    CreateIncidentRequestDefaults,
     CreateResidentRequestDefaults,
+    DeleteIncidentRequestDefaults,
     DeleteResidentRequestDefaults,
+    UpdateIncidentRequestDefaults,
     UpdateResidentRequestDefaults,
 } from './shalimar-defaults.g'
 import {
+    CreateIncidentRequestSchema,
     CreateResidentRequestSchema,
+    DeleteIncidentRequestSchema,
     DeleteResidentRequestSchema,
+    UpdateIncidentRequestSchema,
     UpdateResidentRequestSchema,
 } from './shalimar-zod-schemas.g'
 import type {
+    CreateIncidentRequest,
     CreateResidentRequest,
+    DeleteIncidentRequest,
+    DeleteIncidentResult,
     DeleteResidentRequest,
     DeleteResidentResult,
+    IncidentDto,
     ResidentDto,
+    UpdateIncidentRequest,
     UpdateResidentRequest,
 } from './shalimar-types.g'
 
-export type MutationSpec<TReq, TRes> = {
+export type MutationSpec<TParams extends any[], TReq, TRes> = {
     defaults: TReq
     schema: z.ZodTypeAny
-    mutate: (req: TReq) => Promise<MutationResult<TRes>>
+    mutate: (...args: [...TParams, TReq]) => Promise<MutationResult<TRes>>
     // Optional: server keys for mapping nested validation (PascalCase + [index])
     serverKey: (path: Array<string | number>) => string
     mapClientIssues?: (issues: Array<{ path: Array<string | number>; message: string }>) => ValidationErrors
@@ -60,9 +74,12 @@ function mapIssues(issues: Array<{ path: Array<string | number>; message: string
 }
 
 export const mutationSpecs = {
-    Residents: { defaults: CreateResidentRequestDefaults, schema: CreateResidentRequestSchema, mutate: mutateResidents, serverKey: defaultServerKey, mapClientIssues: mapIssues } satisfies MutationSpec<CreateResidentRequest, ResidentDto>,
-    ResidentsById: { defaults: UpdateResidentRequestDefaults, schema: UpdateResidentRequestSchema, mutate: mutateResidentsById, serverKey: defaultServerKey, mapClientIssues: mapIssues } satisfies MutationSpec<UpdateResidentRequest, ResidentDto>,
-    ResidentsByIdDelete: { defaults: DeleteResidentRequestDefaults, schema: DeleteResidentRequestSchema, mutate: mutateResidentsByIdDelete, serverKey: defaultServerKey, mapClientIssues: mapIssues } satisfies MutationSpec<DeleteResidentRequest, DeleteResidentResult>,
+    Incidents: { defaults: CreateIncidentRequestDefaults, schema: CreateIncidentRequestSchema, mutate: mutateIncidents, serverKey: defaultServerKey, mapClientIssues: mapIssues } satisfies MutationSpec<[], CreateIncidentRequest, IncidentDto>,
+    IncidentsById: { defaults: UpdateIncidentRequestDefaults, schema: UpdateIncidentRequestSchema, mutate: mutateIncidentsById, serverKey: defaultServerKey, mapClientIssues: mapIssues } satisfies MutationSpec<[id: string], UpdateIncidentRequest, IncidentDto>,
+    IncidentsByIdDelete: { defaults: DeleteIncidentRequestDefaults, schema: DeleteIncidentRequestSchema, mutate: mutateIncidentsByIdDelete, serverKey: defaultServerKey, mapClientIssues: mapIssues } satisfies MutationSpec<[id: string], DeleteIncidentRequest, DeleteIncidentResult>,
+    Residents: { defaults: CreateResidentRequestDefaults, schema: CreateResidentRequestSchema, mutate: mutateResidents, serverKey: defaultServerKey, mapClientIssues: mapIssues } satisfies MutationSpec<[], CreateResidentRequest, ResidentDto>,
+    ResidentsById: { defaults: UpdateResidentRequestDefaults, schema: UpdateResidentRequestSchema, mutate: mutateResidentsById, serverKey: defaultServerKey, mapClientIssues: mapIssues } satisfies MutationSpec<[id: string], UpdateResidentRequest, ResidentDto>,
+    ResidentsByIdDelete: { defaults: DeleteResidentRequestDefaults, schema: DeleteResidentRequestSchema, mutate: mutateResidentsByIdDelete, serverKey: defaultServerKey, mapClientIssues: mapIssues } satisfies MutationSpec<[id: string], DeleteResidentRequest, DeleteResidentResult>,
 } as const
 
 export function useMutations() {

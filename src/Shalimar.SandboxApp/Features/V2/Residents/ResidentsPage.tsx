@@ -1,7 +1,7 @@
 import { Button, Heading, TextField } from '@react-spectrum/s2'
 import { Suspense, useMemo, useState } from 'react'
 import { paths } from '@generated/paths'
-import { invalidateResidentsPropsGrid, useResidentsProps, useResidentsPropsGridDeferred } from '@generated/store'
+import { useResidentsProps, useResidentsPropsGridDeferred } from '@generated/store'
 import { useMutations } from '@generated/useMutations'
 import type { ValidationErrors } from '@generated/store'
 
@@ -129,13 +129,11 @@ function ResidentPane(props: { mode: 'new' | 'edit'; residentId?: string; onClos
         if (props.mode === 'new') {
             const created = await create.submit({ name, room, careLevel })
             if (!created) return
-            invalidateResidentsPropsGrid()
             window.location.assign(props.onCloseHref)
             return
         }
         const updated = await update.submit({ name: name || undefined, room: room || undefined, careLevel: careLevel || undefined })
         if (!updated) return
-        invalidateResidentsPropsGrid()
         window.location.assign(props.onCloseHref)
     }
 
@@ -143,7 +141,6 @@ function ResidentPane(props: { mode: 'new' | 'edit'; residentId?: string; onClos
         if (props.mode !== 'edit') return
         const res = await del.submit({})
         if (!res) return
-        invalidateResidentsPropsGrid()
         window.location.assign(props.onCloseHref)
     }
 

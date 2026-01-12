@@ -8,6 +8,13 @@ export interface Lazy<T> {
     href: string;
 }
 
+export interface CreateIncidentRequest {
+    kind: string;
+    summary: string;
+    status: string;
+    residentId: string;
+}
+
 export interface CreateResidentRequest {
     name: string;
     room: string;
@@ -27,6 +34,13 @@ export interface IncidentDto {
     summary: string;
     status: string;
     residentId: string;
+}
+
+export interface IncidentsGridDto {
+    page: number;
+    pageSize: number;
+    total: number;
+    items: IncidentDto[];
 }
 
 export interface ObservationDto {
@@ -50,6 +64,13 @@ export interface ResidentsGridDto {
     pageSize: number;
     total: number;
     items: ResidentDto[];
+}
+
+export interface UpdateIncidentRequest {
+    kind: string | null;
+    summary: string | null;
+    status: string | null;
+    residentId: string | null;
 }
 
 export interface UpdateResidentRequest {
@@ -76,6 +97,22 @@ export interface DashboardProps {
 
 export interface DashboardResidentsDto {
     items: ResidentDto[];
+}
+
+export interface DeleteIncidentRequest {
+}
+
+export interface DeleteIncidentResult {
+    ok: boolean;
+}
+
+export interface IncidentsProps {
+    title: string;
+    query: string | null;
+    page: number;
+    pageSize: number;
+    pane: string | null;
+    grid: Deferred<IncidentsGridDto>;
 }
 
 export interface DeleteResidentRequest {

@@ -5,4 +5,5 @@ export const paths = {
     welcomeProps: () => '/' as const,
     dashboardProps: () => '/dashboard' as const,
     residentsProps: () => '/residents' as const,
+    incidentsProps: () => '/incidents' as const,
 };

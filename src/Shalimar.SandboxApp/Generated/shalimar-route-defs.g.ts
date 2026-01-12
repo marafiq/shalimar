@@ -5,4 +5,5 @@ export const routeDefs = {
     welcomeProps: '/',
     dashboardProps: '/dashboard',
     residentsProps: '/residents',
+    incidentsProps: '/incidents',
 } as const;

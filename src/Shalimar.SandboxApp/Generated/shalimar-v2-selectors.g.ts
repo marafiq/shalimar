@@ -15,6 +15,10 @@ export function useDashboardProps() {
     return useV2Props(v2Keys.DashboardProps)
 }
 
+export function useIncidentsProps() {
+    return useV2Props(v2Keys.IncidentsProps)
+}
+
 export function useResidentsProps() {
     return useV2Props(v2Keys.ResidentsProps)
 }
@@ -35,8 +39,19 @@ export function useDashboardPropsResidentsHref(): string {
     return useV2Props(v2Keys.DashboardProps).residents.href
 }
 
+export function useIncidentsPropsGridHref(): string {
+    return useV2Props(v2Keys.IncidentsProps).grid.href
+}
+
 export function useResidentsPropsGridHref(): string {
     return useV2Props(v2Keys.ResidentsProps).grid.href
+}
+
+export function useIncidentsPropsGridDeferred(): IncidentsGridDto {
+    const props = getV2Props(v2Keys.IncidentsProps)
+    if (!props) throw new Error('Missing v2 props (store not initialized)')
+    const href = props.grid.href
+    return useDeferred<IncidentsGridDto>({ href })
 }
 
 export function useResidentsPropsGridDeferred(): ResidentsGridDto {
@@ -86,6 +101,13 @@ export function invalidateDashboardPropsResidents() {
     if (!props) return
     const href = props.residents.href
     invalidateLazyByPrefix(href)
+}
+
+export function invalidateIncidentsPropsGrid() {
+    const props = getV2Props(v2Keys.IncidentsProps)
+    if (!props) return
+    const href = props.grid.href
+    invalidateDeferredByPrefix(href)
 }
 
 export function invalidateResidentsPropsGrid() {

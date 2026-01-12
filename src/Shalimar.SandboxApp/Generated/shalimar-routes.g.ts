@@ -4,5 +4,6 @@ import { rootRoute, index, route } from '@tanstack/virtual-file-routes'
 export const routes = rootRoute('Features/App/root.tsx', [
     index('Generated/V2Routes/Home/route.tsx'),
     route('dashboard', 'Generated/V2Routes/Dashboard/route.tsx'),
+    route('incidents', 'Generated/V2Routes/Incidents/route.tsx'),
     route('residents', 'Generated/V2Routes/Residents/route.tsx'),
 ])

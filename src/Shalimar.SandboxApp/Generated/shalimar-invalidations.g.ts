@@ -8,6 +8,12 @@ export const componentInvalidations = {
         streamedHrefs: [],
         sseHrefs: [],
     },
+    'IncidentsProps': {
+        deferredHrefs: ['/incidents/grid'],
+        lazyHrefs: [],
+        streamedHrefs: [],
+        sseHrefs: [],
+    },
     'ResidentsProps': {
         deferredHrefs: ['/residents/grid'],
         lazyHrefs: [],

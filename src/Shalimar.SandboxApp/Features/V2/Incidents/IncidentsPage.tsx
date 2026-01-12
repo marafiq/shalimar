@@ -2,7 +2,7 @@ import { Button, Heading, TextField } from '@react-spectrum/s2'
 import { Suspense, useMemo, useState } from 'react'
 import { paths } from '@generated/paths'
 import type { ValidationErrors } from '@generated/store'
-import { invalidateIncidentsPropsGrid, useIncidentsProps, useIncidentsPropsGridDeferred } from '@generated/store'
+import { useIncidentsProps, useIncidentsPropsGridDeferred } from '@generated/store'
 import { useMutations } from '@generated/useMutations'
 
 function GridSkeleton() {
@@ -133,13 +133,11 @@ function IncidentPane(props: { mode: 'new' | 'edit'; incidentId?: string; onClos
         if (props.mode === 'new') {
             const created = await create.submit({ kind, summary, status, residentId })
             if (!created) return
-            invalidateIncidentsPropsGrid()
             window.location.assign(props.onCloseHref)
             return
         }
         const updated = await update.submit({ kind: kind || undefined, summary: summary || undefined, status: status || undefined, residentId: residentId || undefined })
         if (!updated) return
-        invalidateIncidentsPropsGrid()
         window.location.assign(props.onCloseHref)
     }
 
@@ -147,7 +145,6 @@ function IncidentPane(props: { mode: 'new' | 'edit'; incidentId?: string; onClos
         if (props.mode !== 'edit') return
         const res = await del.submit({})
         if (!res) return
-        invalidateIncidentsPropsGrid()
         window.location.assign(props.onCloseHref)
     }
 

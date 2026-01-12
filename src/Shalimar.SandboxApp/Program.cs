@@ -146,7 +146,10 @@ app.MapPost("/residents", async (SeniorLivingRepository repo, IValidator<CreateR
     var result = await v.ValidateAsync(req);
     if (!result.IsValid) return Results.ValidationProblem(ToValidationProblem(result));
     return Results.Ok(repo.CreateResident(req));
-}).AsMutation<CreateResidentRequest, ResidentDto>();
+})
+    .Invalidates<ResidentsProps>()
+    .Invalidates<DashboardProps>()
+    .AsMutation<CreateResidentRequest, ResidentDto>();
 
 app.MapPatch("/residents/{id}", async (SeniorLivingRepository repo, IValidator<UpdateResidentRequest> v, string id, UpdateResidentRequest req) =>
 {
@@ -154,13 +157,19 @@ app.MapPatch("/residents/{id}", async (SeniorLivingRepository repo, IValidator<U
     if (!result.IsValid) return Results.ValidationProblem(ToValidationProblem(result));
     var updated = repo.UpdateResident(id, req);
     return updated is null ? Results.NotFound() : Results.Ok(updated);
-}).AsMutation<UpdateResidentRequest, ResidentDto>();
+})
+    .Invalidates<ResidentsProps>()
+    .Invalidates<DashboardProps>()
+    .AsMutation<UpdateResidentRequest, ResidentDto>();
 
 app.MapPost("/residents/{id}/delete", (SeniorLivingRepository repo, string id, DeleteResidentRequest req) =>
 {
     var ok = repo.DeleteResident(id);
     return Results.Ok(new DeleteResidentResult(ok));
-}).AsMutation<DeleteResidentRequest, DeleteResidentResult>();
+})
+    .Invalidates<ResidentsProps>()
+    .Invalidates<DashboardProps>()
+    .AsMutation<DeleteResidentRequest, DeleteResidentResult>();
 
 app.MapGet("/incidents", (HttpRequest req, SeniorLivingRepository repo) =>
 {
@@ -230,9 +239,10 @@ app.MapPost("/incidents", async (SeniorLivingRepository repo, IValidator<CreateI
     var result = await v.ValidateAsync(req);
     if (!result.IsValid) return Results.ValidationProblem(ToValidationProblem(result));
     return Results.Ok(repo.CreateIncident(req));
-}).AsMutation<CreateIncidentRequest, IncidentDto>()
-  .Invalidates<IncidentsProps>()
-  .Invalidates<DashboardProps>();
+})
+    .Invalidates<IncidentsProps>()
+    .Invalidates<DashboardProps>()
+    .AsMutation<CreateIncidentRequest, IncidentDto>();
 
 app.MapPatch("/incidents/{id}", async (SeniorLivingRepository repo, IValidator<UpdateIncidentRequest> v, string id, UpdateIncidentRequest req) =>
 {
@@ -240,17 +250,19 @@ app.MapPatch("/incidents/{id}", async (SeniorLivingRepository repo, IValidator<U
     if (!result.IsValid) return Results.ValidationProblem(ToValidationProblem(result));
     var updated = repo.UpdateIncident(id, req);
     return updated is null ? Results.NotFound() : Results.Ok(updated);
-}).AsMutation<UpdateIncidentRequest, IncidentDto>()
-  .Invalidates<IncidentsProps>()
-  .Invalidates<DashboardProps>();
+})
+    .Invalidates<IncidentsProps>()
+    .Invalidates<DashboardProps>()
+    .AsMutation<UpdateIncidentRequest, IncidentDto>();
 
 app.MapPost("/incidents/{id}/delete", (SeniorLivingRepository repo, string id, DeleteIncidentRequest req) =>
 {
     var ok = repo.DeleteIncident(id);
     return Results.Ok(new DeleteIncidentResult(ok));
-}).AsMutation<DeleteIncidentRequest, DeleteIncidentResult>()
-  .Invalidates<IncidentsProps>()
-  .Invalidates<DashboardProps>();
+})
+    .Invalidates<IncidentsProps>()
+    .Invalidates<DashboardProps>()
+    .AsMutation<DeleteIncidentRequest, DeleteIncidentResult>();
 
 if (!string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("SHALIMAR_TESTING")))
 {
