@@ -18,7 +18,7 @@ bun.lockb
 # Sandbox app is now a first-class repo project (do not ignore)
 
 # Vite build output
-wwwroot/dist/
+**/wwwroot/dist/
 
 # TanStack Router generated (except in template)
 routeTree.gen.ts

@@ -6,6 +6,9 @@ using FluentValidation;
 using Shalimar.SandboxApp.Features.V2.Dashboard;
 using Shalimar.SandboxApp.Features.V2.Residents;
 using Shalimar.SandboxApp.Features.V2.Incidents;
+using Shalimar.SandboxApp.Features.V2.Observations;
+using Shalimar.SandboxApp.Features.V2.MedPassSchedule;
+using Shalimar.SandboxApp.Features.V2.PassMeds;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -24,6 +27,11 @@ builder.Services.AddSingleton<IValidator<CreateResidentRequest>, CreateResidentR
 builder.Services.AddSingleton<IValidator<UpdateResidentRequest>, UpdateResidentRequestValidator>();
 builder.Services.AddSingleton<IValidator<CreateIncidentRequest>, CreateIncidentRequestValidator>();
 builder.Services.AddSingleton<IValidator<UpdateIncidentRequest>, UpdateIncidentRequestValidator>();
+builder.Services.AddSingleton<IValidator<CreateObservationRequest>, CreateObservationRequestValidator>();
+builder.Services.AddSingleton<IValidator<UpdateObservationRequest>, UpdateObservationRequestValidator>();
+builder.Services.AddSingleton<IValidator<CreateMedPassScheduleRequest>, CreateMedPassScheduleRequestValidator>();
+builder.Services.AddSingleton<IValidator<UpdateMedPassScheduleRequest>, UpdateMedPassScheduleRequestValidator>();
+builder.Services.AddSingleton<IValidator<PassMedRequest>, PassMedRequestValidator>();
 
 var app = builder.Build();
 app.UseShalimar();
@@ -263,6 +271,242 @@ app.MapPost("/incidents/{id}/delete", (SeniorLivingRepository repo, string id, D
     .Invalidates<IncidentsProps>()
     .Invalidates<DashboardProps>()
     .AsMutation<DeleteIncidentRequest, DeleteIncidentResult>();
+
+app.MapGet("/observations", (HttpRequest req, SeniorLivingRepository repo) =>
+{
+    static int GetInt(HttpRequest req, string key, int fallback)
+    {
+        var raw = req.Query[key].ToString();
+        return int.TryParse(raw, out var v) ? v : fallback;
+    }
+
+    static string? GetString(HttpRequest req, string key)
+    {
+        var raw = req.Query[key].ToString();
+        return string.IsNullOrWhiteSpace(raw) ? null : raw;
+    }
+
+    var q = GetString(req, "q");
+    var page = GetInt(req, "page", 1);
+    var pageSize = GetInt(req, "pageSize", 20);
+    var pane = GetString(req, "pane");
+
+    var href = BuildQueryHref(
+        "/observations/grid",
+        new[]
+        {
+            ("q", q),
+            ("page", page.ToString()),
+            ("pageSize", pageSize.ToString()),
+        });
+
+    var props = new ObservationsProps(
+        Title: "Observations",
+        Query: q,
+        Page: page,
+        PageSize: pageSize,
+        Pane: pane,
+        Grid: new Deferred<ObservationsGridDto>(href));
+
+    return ShalimarTypedResults.Component(MakeContext(app), props, "Shalimar");
+}).ForTsxFile("Features/V2/Observations/ObservationsPage.tsx").AsComponent<ObservationsProps>();
+
+app.MapGet("/observations/grid", (HttpRequest req, SeniorLivingRepository repo) =>
+{
+    static int GetInt(HttpRequest req, string key, int fallback)
+    {
+        var raw = req.Query[key].ToString();
+        return int.TryParse(raw, out var v) ? v : fallback;
+    }
+
+    static string? GetString(HttpRequest req, string key)
+    {
+        var raw = req.Query[key].ToString();
+        return string.IsNullOrWhiteSpace(raw) ? null : raw;
+    }
+
+    var q = GetString(req, "q");
+    var page = GetInt(req, "page", 1);
+    var pageSize = GetInt(req, "pageSize", 20);
+
+    return repo.ObservationsGrid(page, pageSize, q);
+})
+    .ForComponent<ObservationsProps>()
+    .ForNode<ObservationsProps>(p => p.Grid)
+    .AsDeferred<ObservationsGridDto>();
+
+app.MapPost("/observations", async (SeniorLivingRepository repo, IValidator<CreateObservationRequest> v, CreateObservationRequest req) =>
+{
+    var result = await v.ValidateAsync(req);
+    if (!result.IsValid) return Results.ValidationProblem(ToValidationProblem(result));
+    return Results.Ok(repo.CreateObservation(req));
+})
+    .Invalidates<ObservationsProps>()
+    .Invalidates<DashboardProps>()
+    .AsMutation<CreateObservationRequest, ObservationDto>();
+
+app.MapPatch("/observations/{id}", async (SeniorLivingRepository repo, IValidator<UpdateObservationRequest> v, string id, UpdateObservationRequest req) =>
+{
+    var result = await v.ValidateAsync(req);
+    if (!result.IsValid) return Results.ValidationProblem(ToValidationProblem(result));
+    var updated = repo.UpdateObservation(id, req);
+    return updated is null ? Results.NotFound() : Results.Ok(updated);
+})
+    .Invalidates<ObservationsProps>()
+    .Invalidates<DashboardProps>()
+    .AsMutation<UpdateObservationRequest, ObservationDto>();
+
+app.MapPost("/observations/{id}/delete", (SeniorLivingRepository repo, string id, DeleteObservationRequest req) =>
+{
+    var ok = repo.DeleteObservation(id);
+    return Results.Ok(new DeleteObservationResult(ok));
+})
+    .Invalidates<ObservationsProps>()
+    .Invalidates<DashboardProps>()
+    .AsMutation<DeleteObservationRequest, DeleteObservationResult>();
+
+app.MapGet("/medpass/schedule", (HttpRequest req, SeniorLivingRepository repo) =>
+{
+    static int GetInt(HttpRequest req, string key, int fallback)
+    {
+        var raw = req.Query[key].ToString();
+        return int.TryParse(raw, out var v) ? v : fallback;
+    }
+
+    static string? GetString(HttpRequest req, string key)
+    {
+        var raw = req.Query[key].ToString();
+        return string.IsNullOrWhiteSpace(raw) ? null : raw;
+    }
+
+    var q = GetString(req, "q");
+    var page = GetInt(req, "page", 1);
+    var pageSize = GetInt(req, "pageSize", 20);
+    var pane = GetString(req, "pane");
+
+    var href = BuildQueryHref(
+        "/medpass/schedule/grid",
+        new[]
+        {
+            ("q", q),
+            ("page", page.ToString()),
+            ("pageSize", pageSize.ToString()),
+        });
+
+    var props = new MedPassScheduleProps(
+        Title: "Med pass schedule",
+        Query: q,
+        Page: page,
+        PageSize: pageSize,
+        Pane: pane,
+        Grid: new Deferred<MedPassScheduleGridDto>(href));
+
+    return ShalimarTypedResults.Component(MakeContext(app), props, "Shalimar");
+}).ForTsxFile("Features/V2/MedPassSchedule/MedPassSchedulePage.tsx").AsComponent<MedPassScheduleProps>();
+
+app.MapGet("/medpass/schedule/grid", (HttpRequest req, SeniorLivingRepository repo) =>
+{
+    static int GetInt(HttpRequest req, string key, int fallback)
+    {
+        var raw = req.Query[key].ToString();
+        return int.TryParse(raw, out var v) ? v : fallback;
+    }
+
+    static string? GetString(HttpRequest req, string key)
+    {
+        var raw = req.Query[key].ToString();
+        return string.IsNullOrWhiteSpace(raw) ? null : raw;
+    }
+
+    var q = GetString(req, "q");
+    var page = GetInt(req, "page", 1);
+    var pageSize = GetInt(req, "pageSize", 20);
+
+    return repo.MedPassScheduleGrid(page, pageSize, q);
+})
+    .ForComponent<MedPassScheduleProps>()
+    .ForNode<MedPassScheduleProps>(p => p.Grid)
+    .AsDeferred<MedPassScheduleGridDto>();
+
+app.MapPost("/medpass/schedule", async (SeniorLivingRepository repo, IValidator<CreateMedPassScheduleRequest> v, CreateMedPassScheduleRequest req) =>
+{
+    var result = await v.ValidateAsync(req);
+    if (!result.IsValid) return Results.ValidationProblem(ToValidationProblem(result));
+    return Results.Ok(repo.CreateMedPassSchedule(req));
+})
+    .Invalidates<MedPassScheduleProps>()
+    .Invalidates<PassMedsProps>()
+    .AsMutation<CreateMedPassScheduleRequest, MedPassScheduleRowDto>();
+
+app.MapPatch("/medpass/schedule/{id}", async (SeniorLivingRepository repo, IValidator<UpdateMedPassScheduleRequest> v, string id, UpdateMedPassScheduleRequest req) =>
+{
+    var result = await v.ValidateAsync(req);
+    if (!result.IsValid) return Results.ValidationProblem(ToValidationProblem(result));
+    var updated = repo.UpdateMedPassSchedule(id, req);
+    return updated is null ? Results.NotFound() : Results.Ok(updated);
+})
+    .Invalidates<MedPassScheduleProps>()
+    .Invalidates<PassMedsProps>()
+    .AsMutation<UpdateMedPassScheduleRequest, MedPassScheduleRowDto>();
+
+app.MapPost("/medpass/schedule/{id}/delete", (SeniorLivingRepository repo, string id, DeleteMedPassScheduleRequest req) =>
+{
+    var ok = repo.DeleteMedPassSchedule(id);
+    return Results.Ok(new DeleteMedPassScheduleResult(ok));
+})
+    .Invalidates<MedPassScheduleProps>()
+    .Invalidates<PassMedsProps>()
+    .AsMutation<DeleteMedPassScheduleRequest, DeleteMedPassScheduleResult>();
+
+app.MapGet("/medpass/pass", (HttpRequest req) =>
+{
+    static string? GetString(HttpRequest req, string key)
+    {
+        var raw = req.Query[key].ToString();
+        return string.IsNullOrWhiteSpace(raw) ? null : raw;
+    }
+
+    var q = GetString(req, "q");
+    var dueHref = BuildQueryHref("/medpass/pass/due", new[] { ("q", q) });
+    var recentHref = BuildQueryHref("/medpass/pass/recent", Array.Empty<(string, string?)>());
+
+    var props = new PassMedsProps(
+        Title: "Pass meds",
+        Query: q,
+        Due: new Deferred<PassMedsDueDto>(dueHref),
+        Recent: new Deferred<PassMedsRecentDto>(recentHref));
+
+    return ShalimarTypedResults.Component(MakeContext(app), props, "Shalimar");
+}).ForTsxFile("Features/V2/PassMeds/PassMedsPage.tsx").AsComponent<PassMedsProps>();
+
+app.MapGet("/medpass/pass/due", (HttpRequest req, SeniorLivingRepository repo) =>
+{
+    static string? GetString(HttpRequest req, string key)
+    {
+        var raw = req.Query[key].ToString();
+        return string.IsNullOrWhiteSpace(raw) ? null : raw;
+    }
+
+    var q = GetString(req, "q");
+    return repo.PassMedsDue(q);
+})
+    .ForComponent<PassMedsProps>()
+    .ForNode<PassMedsProps>(p => p.Due)
+    .AsDeferred<PassMedsDueDto>();
+
+app.MapGet("/medpass/pass/recent", (SeniorLivingRepository repo) => repo.PassMedsRecent())
+    .ForComponent<PassMedsProps>()
+    .ForNode<PassMedsProps>(p => p.Recent)
+    .AsDeferred<PassMedsRecentDto>();
+
+app.MapPost("/medpass/pass", async (SeniorLivingRepository repo, IValidator<PassMedRequest> v, PassMedRequest req) =>
+{
+    var result = await v.ValidateAsync(req);
+    if (!result.IsValid) return Results.ValidationProblem(ToValidationProblem(result));
+    return Results.Ok(repo.PassMed(req));
+})
+    .Invalidates<PassMedsProps>()
+    .AsMutation<PassMedRequest, PassMedResult>();
 
 if (!string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("SHALIMAR_TESTING")))
 {

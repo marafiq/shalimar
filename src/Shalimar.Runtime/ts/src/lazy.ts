@@ -26,6 +26,11 @@ async function fetchJson(href: string) {
     return (await res.json()) as unknown
 }
 
+function isTransientFetchError(error: unknown): boolean {
+    // See deferred.ts: full-page navigations can abort fetches with `TypeError: Failed to fetch`.
+    return error instanceof TypeError && String(error.message).includes('Failed to fetch')
+}
+
 export function prefetchLazy(ref: { href: string }) {
     const href = ref.href
     const current = getEntry(href)
@@ -44,6 +49,7 @@ export function prefetchLazy(ref: { href: string }) {
             lazyStore.setState((s) => {
                 const now = s[href]
                 if (!now || now.status !== 'pending' || now.promise !== promise) return s
+                if (isTransientFetchError(error)) return { ...s, [href]: IDLE }
                 return { ...s, [href]: { status: 'rejected', error } }
             })
             throw error
@@ -83,6 +89,7 @@ export function useLazy<T>(ref: { href: string }) {
                 lazyStore.setState((s) => {
                     const now = s[href]
                     if (!now || now.status !== 'pending' || now.promise !== promise) return s
+                    if (isTransientFetchError(error)) return { ...s, [href]: IDLE }
                     return { ...s, [href]: { status: 'rejected', error } }
                 })
                 throw error

@@ -14,6 +14,24 @@ export const componentInvalidations = {
         streamedHrefs: [],
         sseHrefs: [],
     },
+    'MedPassScheduleProps': {
+        deferredHrefs: ['/medpass/schedule/grid'],
+        lazyHrefs: [],
+        streamedHrefs: [],
+        sseHrefs: [],
+    },
+    'ObservationsProps': {
+        deferredHrefs: ['/observations/grid'],
+        lazyHrefs: [],
+        streamedHrefs: [],
+        sseHrefs: [],
+    },
+    'PassMedsProps': {
+        deferredHrefs: ['/medpass/pass/due', '/medpass/pass/recent'],
+        lazyHrefs: [],
+        streamedHrefs: [],
+        sseHrefs: [],
+    },
     'ResidentsProps': {
         deferredHrefs: ['/residents/grid'],
         lazyHrefs: [],

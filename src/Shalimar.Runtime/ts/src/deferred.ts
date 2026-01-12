@@ -22,6 +22,12 @@ async function fetchJson(href: string) {
     return (await res.json()) as unknown
 }
 
+function isTransientFetchError(error: unknown): boolean {
+    // During full-page navigations, browsers may abort in-flight fetches. Chromium often
+    // surfaces this as `TypeError: Failed to fetch` (not AbortError).
+    return error instanceof TypeError && String(error.message).includes('Failed to fetch')
+}
+
 /**
  * Resolve a deferred handle using React Suspense.
  *
@@ -50,6 +56,11 @@ export function useDeferred<T>(ref: { href: string }): T {
                 deferredStore.setState((s) => {
                     const now = s[href]
                     if (!now || now.status !== 'pending' || now.promise !== promise) return s
+                    if (isTransientFetchError(error)) {
+                        const next = { ...s }
+                        delete next[href]
+                        return next
+                    }
                     return { ...s, [href]: { status: 'rejected', error } }
                 })
             })

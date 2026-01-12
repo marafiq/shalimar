@@ -6,4 +6,7 @@ export const routeDefs = {
     dashboardProps: '/dashboard',
     residentsProps: '/residents',
     incidentsProps: '/incidents',
+    observationsProps: '/observations',
+    medPassScheduleProps: '/medpass/schedule',
+    passMedsProps: '/medpass/pass',
 } as const;

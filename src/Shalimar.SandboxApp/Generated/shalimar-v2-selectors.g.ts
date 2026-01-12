@@ -19,6 +19,18 @@ export function useIncidentsProps() {
     return useV2Props(v2Keys.IncidentsProps)
 }
 
+export function useMedPassScheduleProps() {
+    return useV2Props(v2Keys.MedPassScheduleProps)
+}
+
+export function useObservationsProps() {
+    return useV2Props(v2Keys.ObservationsProps)
+}
+
+export function usePassMedsProps() {
+    return useV2Props(v2Keys.PassMedsProps)
+}
+
 export function useResidentsProps() {
     return useV2Props(v2Keys.ResidentsProps)
 }
@@ -43,6 +55,22 @@ export function useIncidentsPropsGridHref(): string {
     return useV2Props(v2Keys.IncidentsProps).grid.href
 }
 
+export function useMedPassSchedulePropsGridHref(): string {
+    return useV2Props(v2Keys.MedPassScheduleProps).grid.href
+}
+
+export function useObservationsPropsGridHref(): string {
+    return useV2Props(v2Keys.ObservationsProps).grid.href
+}
+
+export function usePassMedsPropsDueHref(): string {
+    return useV2Props(v2Keys.PassMedsProps).due.href
+}
+
+export function usePassMedsPropsRecentHref(): string {
+    return useV2Props(v2Keys.PassMedsProps).recent.href
+}
+
 export function useResidentsPropsGridHref(): string {
     return useV2Props(v2Keys.ResidentsProps).grid.href
 }
@@ -52,6 +80,34 @@ export function useIncidentsPropsGridDeferred(): IncidentsGridDto {
     if (!props) throw new Error('Missing v2 props (store not initialized)')
     const href = props.grid.href
     return useDeferred<IncidentsGridDto>({ href })
+}
+
+export function useMedPassSchedulePropsGridDeferred(): MedPassScheduleGridDto {
+    const props = getV2Props(v2Keys.MedPassScheduleProps)
+    if (!props) throw new Error('Missing v2 props (store not initialized)')
+    const href = props.grid.href
+    return useDeferred<MedPassScheduleGridDto>({ href })
+}
+
+export function useObservationsPropsGridDeferred(): ObservationsGridDto {
+    const props = getV2Props(v2Keys.ObservationsProps)
+    if (!props) throw new Error('Missing v2 props (store not initialized)')
+    const href = props.grid.href
+    return useDeferred<ObservationsGridDto>({ href })
+}
+
+export function usePassMedsPropsDueDeferred(): PassMedsDueDto {
+    const props = getV2Props(v2Keys.PassMedsProps)
+    if (!props) throw new Error('Missing v2 props (store not initialized)')
+    const href = props.due.href
+    return useDeferred<PassMedsDueDto>({ href })
+}
+
+export function usePassMedsPropsRecentDeferred(): PassMedsRecentDto {
+    const props = getV2Props(v2Keys.PassMedsProps)
+    if (!props) throw new Error('Missing v2 props (store not initialized)')
+    const href = props.recent.href
+    return useDeferred<PassMedsRecentDto>({ href })
 }
 
 export function useResidentsPropsGridDeferred(): ResidentsGridDto {
@@ -107,6 +163,34 @@ export function invalidateIncidentsPropsGrid() {
     const props = getV2Props(v2Keys.IncidentsProps)
     if (!props) return
     const href = props.grid.href
+    invalidateDeferredByPrefix(href)
+}
+
+export function invalidateMedPassSchedulePropsGrid() {
+    const props = getV2Props(v2Keys.MedPassScheduleProps)
+    if (!props) return
+    const href = props.grid.href
+    invalidateDeferredByPrefix(href)
+}
+
+export function invalidateObservationsPropsGrid() {
+    const props = getV2Props(v2Keys.ObservationsProps)
+    if (!props) return
+    const href = props.grid.href
+    invalidateDeferredByPrefix(href)
+}
+
+export function invalidatePassMedsPropsDue() {
+    const props = getV2Props(v2Keys.PassMedsProps)
+    if (!props) return
+    const href = props.due.href
+    invalidateDeferredByPrefix(href)
+}
+
+export function invalidatePassMedsPropsRecent() {
+    const props = getV2Props(v2Keys.PassMedsProps)
+    if (!props) return
+    const href = props.recent.href
     invalidateDeferredByPrefix(href)
 }
 

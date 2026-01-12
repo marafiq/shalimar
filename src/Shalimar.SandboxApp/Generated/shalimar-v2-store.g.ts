@@ -4,6 +4,9 @@ import { useStore } from '@tanstack/react-store'
 import type {
     DashboardProps,
     IncidentsProps,
+    MedPassScheduleProps,
+    ObservationsProps,
+    PassMedsProps,
     ResidentsProps,
     WelcomeProps,
 } from './shalimar-types.g'
@@ -11,6 +14,9 @@ import type {
 export type V2PropsByComponent = {
     DashboardProps: DashboardProps
     IncidentsProps: IncidentsProps
+    MedPassScheduleProps: MedPassScheduleProps
+    ObservationsProps: ObservationsProps
+    PassMedsProps: PassMedsProps
     ResidentsProps: ResidentsProps
     WelcomeProps: WelcomeProps
 }
@@ -18,6 +24,9 @@ export type V2PropsByComponent = {
 export const v2Keys = {
     DashboardProps: 'DashboardProps',
     IncidentsProps: 'IncidentsProps',
+    MedPassScheduleProps: 'MedPassScheduleProps',
+    ObservationsProps: 'ObservationsProps',
+    PassMedsProps: 'PassMedsProps',
     ResidentsProps: 'ResidentsProps',
     WelcomeProps: 'WelcomeProps',
 } as const
@@ -33,6 +42,9 @@ type V2RouteState<TProps> = {
 export const v2Stores: { [K in V2ComponentKey]: Store<V2RouteState<V2PropsByComponent[K]>> } = {
     DashboardProps: new Store<V2RouteState<V2PropsByComponent['DashboardProps']>>({ props: null, ui: {} }),
     IncidentsProps: new Store<V2RouteState<V2PropsByComponent['IncidentsProps']>>({ props: null, ui: {} }),
+    MedPassScheduleProps: new Store<V2RouteState<V2PropsByComponent['MedPassScheduleProps']>>({ props: null, ui: {} }),
+    ObservationsProps: new Store<V2RouteState<V2PropsByComponent['ObservationsProps']>>({ props: null, ui: {} }),
+    PassMedsProps: new Store<V2RouteState<V2PropsByComponent['PassMedsProps']>>({ props: null, ui: {} }),
     ResidentsProps: new Store<V2RouteState<V2PropsByComponent['ResidentsProps']>>({ props: null, ui: {} }),
     WelcomeProps: new Store<V2RouteState<V2PropsByComponent['WelcomeProps']>>({ props: null, ui: {} }),
 }

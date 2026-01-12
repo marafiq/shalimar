@@ -6,4 +6,7 @@ export const paths = {
     dashboardProps: () => '/dashboard' as const,
     residentsProps: () => '/residents' as const,
     incidentsProps: () => '/incidents' as const,
+    observationsProps: () => '/observations' as const,
+    medPassScheduleProps: () => '/medpass/schedule' as const,
+    passMedsProps: () => '/medpass/pass' as const,
 };

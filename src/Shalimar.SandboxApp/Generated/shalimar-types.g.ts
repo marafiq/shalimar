@@ -15,6 +15,19 @@ export interface CreateIncidentRequest {
     residentId: string;
 }
 
+export interface CreateMedPassScheduleRequest {
+    residentId: string;
+    medId: string;
+    time: string;
+    frequency: string;
+}
+
+export interface CreateObservationRequest {
+    kind: string;
+    note: string;
+    residentId: string;
+}
+
 export interface CreateResidentRequest {
     name: string;
     room: string;
@@ -43,12 +56,75 @@ export interface IncidentsGridDto {
     items: IncidentDto[];
 }
 
+export interface MedPassLogItemDto {
+    id: string;
+    ts: string;
+    residentId: string;
+    residentName: string;
+    medId: string;
+    medName: string;
+    outcome: string;
+    note: string | null;
+}
+
+export interface MedPassScheduleGridDto {
+    page: number;
+    pageSize: number;
+    total: number;
+    items: MedPassScheduleRowDto[];
+}
+
+export interface MedPassScheduleRowDto {
+    id: string;
+    residentId: string;
+    residentName: string;
+    medId: string;
+    medName: string;
+    time: string;
+    frequency: string;
+}
+
 export interface ObservationDto {
     id: string;
     ts: string;
     kind: string;
     note: string;
     residentId: string;
+}
+
+export interface ObservationsGridDto {
+    page: number;
+    pageSize: number;
+    total: number;
+    items: ObservationDto[];
+}
+
+export interface PassMedRequest {
+    scheduleId: string;
+    outcome: string;
+    note: string | null;
+}
+
+export interface PassMedResult {
+    passId: string;
+}
+
+export interface PassMedsDueDto {
+    items: PassMedsDueItemDto[];
+}
+
+export interface PassMedsDueItemDto {
+    scheduleId: string;
+    residentId: string;
+    residentName: string;
+    medId: string;
+    medName: string;
+    time: string;
+    frequency: string;
+}
+
+export interface PassMedsRecentDto {
+    items: MedPassLogItemDto[];
 }
 
 export interface ResidentDto {
@@ -70,6 +146,19 @@ export interface UpdateIncidentRequest {
     kind: string | null;
     summary: string | null;
     status: string | null;
+    residentId: string | null;
+}
+
+export interface UpdateMedPassScheduleRequest {
+    residentId: string | null;
+    medId: string | null;
+    time: string | null;
+    frequency: string | null;
+}
+
+export interface UpdateObservationRequest {
+    kind: string | null;
+    note: string | null;
     residentId: string | null;
 }
 
@@ -113,6 +202,45 @@ export interface IncidentsProps {
     pageSize: number;
     pane: string | null;
     grid: Deferred<IncidentsGridDto>;
+}
+
+export interface DeleteMedPassScheduleRequest {
+}
+
+export interface DeleteMedPassScheduleResult {
+    ok: boolean;
+}
+
+export interface MedPassScheduleProps {
+    title: string;
+    query: string | null;
+    page: number;
+    pageSize: number;
+    pane: string | null;
+    grid: Deferred<MedPassScheduleGridDto>;
+}
+
+export interface DeleteObservationRequest {
+}
+
+export interface DeleteObservationResult {
+    ok: boolean;
+}
+
+export interface ObservationsProps {
+    title: string;
+    query: string | null;
+    page: number;
+    pageSize: number;
+    pane: string | null;
+    grid: Deferred<ObservationsGridDto>;
+}
+
+export interface PassMedsProps {
+    title: string;
+    query: string | null;
+    due: Deferred<PassMedsDueDto>;
+    recent: Deferred<PassMedsRecentDto>;
 }
 
 export interface DeleteResidentRequest {

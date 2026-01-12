@@ -29,6 +29,10 @@ export function AppShell(props: { children: React.ReactNode }) {
                         <NavLink href="/dashboard" label="Dashboard" />
                         <NavLink href="/residents" label="Residents" />
                         <NavLink href="/incidents" label="Incidents" />
+                        <NavLink href="/observations" label="Observations" />
+                        <div className="mt-2 px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-zinc-500">Medication</div>
+                        <NavLink href="/medpass/schedule" label="Med pass schedule" />
+                        <NavLink href="/medpass/pass" label="Pass meds" />
                     </div>
                 </aside>
 

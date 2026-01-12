@@ -5,5 +5,10 @@ export const routes = rootRoute('Features/App/root.tsx', [
     index('Generated/V2Routes/Home/route.tsx'),
     route('dashboard', 'Generated/V2Routes/Dashboard/route.tsx'),
     route('incidents', 'Generated/V2Routes/Incidents/route.tsx'),
+    route('medpass', 'Generated/V2Routes/Medpass/route.tsx', [
+        route('pass', 'Generated/V2Routes/Medpass/Pass/route.tsx'),
+        route('schedule', 'Generated/V2Routes/Medpass/Schedule/route.tsx'),
+    ]),
+    route('observations', 'Generated/V2Routes/Observations/route.tsx'),
     route('residents', 'Generated/V2Routes/Residents/route.tsx'),
 ])

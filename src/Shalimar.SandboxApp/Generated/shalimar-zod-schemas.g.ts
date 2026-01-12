@@ -2,10 +2,17 @@
 import { z } from 'zod'
 import type {
     CreateIncidentRequest,
+    CreateMedPassScheduleRequest,
+    CreateObservationRequest,
     CreateResidentRequest,
     DeleteIncidentRequest,
+    DeleteMedPassScheduleRequest,
+    DeleteObservationRequest,
     DeleteResidentRequest,
+    PassMedRequest,
     UpdateIncidentRequest,
+    UpdateMedPassScheduleRequest,
+    UpdateObservationRequest,
     UpdateResidentRequest,
 } from './shalimar-types.g'
 
@@ -14,6 +21,19 @@ export const CreateIncidentRequestSchema = z.object({
     residentId: z.string().min(1).max(40),
     status: z.string().min(1).max(40),
     summary: z.string().min(1).max(500),
+})
+
+export const CreateMedPassScheduleRequestSchema = z.object({
+    frequency: z.string().min(1).max(40),
+    medId: z.string().min(1).max(40),
+    residentId: z.string().min(1).max(40),
+    time: z.string().min(1).max(10),
+})
+
+export const CreateObservationRequestSchema = z.object({
+    kind: z.string().min(1).max(80),
+    note: z.string().min(1).max(500),
+    residentId: z.string().min(1).max(40),
 })
 
 export const CreateResidentRequestSchema = z.object({
@@ -25,7 +45,19 @@ export const CreateResidentRequestSchema = z.object({
 export const DeleteIncidentRequestSchema = z.object({
 })
 
+export const DeleteMedPassScheduleRequestSchema = z.object({
+})
+
+export const DeleteObservationRequestSchema = z.object({
+})
+
 export const DeleteResidentRequestSchema = z.object({
+})
+
+export const PassMedRequestSchema = z.object({
+    note: z.string().max(500).nullable(),
+    outcome: z.string().min(1).max(40),
+    scheduleId: z.string().min(1).max(40),
 })
 
 export const UpdateIncidentRequestSchema = z.object({
@@ -33,6 +65,19 @@ export const UpdateIncidentRequestSchema = z.object({
     residentId: z.string().max(40).nullable(),
     status: z.string().max(40).nullable(),
     summary: z.string().max(500).nullable(),
+})
+
+export const UpdateMedPassScheduleRequestSchema = z.object({
+    frequency: z.string().max(40).nullable(),
+    medId: z.string().max(40).nullable(),
+    residentId: z.string().max(40).nullable(),
+    time: z.string().max(10).nullable(),
+})
+
+export const UpdateObservationRequestSchema = z.object({
+    kind: z.string().max(80).nullable(),
+    note: z.string().max(500).nullable(),
+    residentId: z.string().max(40).nullable(),
 })
 
 export const UpdateResidentRequestSchema = z.object({
@@ -43,9 +88,16 @@ export const UpdateResidentRequestSchema = z.object({
 
 export const schemas = {
     CreateIncidentRequest: CreateIncidentRequestSchema,
+    CreateMedPassScheduleRequest: CreateMedPassScheduleRequestSchema,
+    CreateObservationRequest: CreateObservationRequestSchema,
     CreateResidentRequest: CreateResidentRequestSchema,
     DeleteIncidentRequest: DeleteIncidentRequestSchema,
+    DeleteMedPassScheduleRequest: DeleteMedPassScheduleRequestSchema,
+    DeleteObservationRequest: DeleteObservationRequestSchema,
     DeleteResidentRequest: DeleteResidentRequestSchema,
+    PassMedRequest: PassMedRequestSchema,
     UpdateIncidentRequest: UpdateIncidentRequestSchema,
+    UpdateMedPassScheduleRequest: UpdateMedPassScheduleRequestSchema,
+    UpdateObservationRequest: UpdateObservationRequestSchema,
     UpdateResidentRequest: UpdateResidentRequestSchema,
 } as const

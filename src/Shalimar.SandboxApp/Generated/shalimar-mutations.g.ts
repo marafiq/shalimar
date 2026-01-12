@@ -2,14 +2,26 @@
 import { invalidateComponent, type ComponentKey } from './shalimar-invalidations.g'
 import type {
     CreateIncidentRequest,
+    CreateMedPassScheduleRequest,
+    CreateObservationRequest,
     CreateResidentRequest,
     DeleteIncidentRequest,
     DeleteIncidentResult,
+    DeleteMedPassScheduleRequest,
+    DeleteMedPassScheduleResult,
+    DeleteObservationRequest,
+    DeleteObservationResult,
     DeleteResidentRequest,
     DeleteResidentResult,
     IncidentDto,
+    MedPassScheduleRowDto,
+    ObservationDto,
+    PassMedRequest,
+    PassMedResult,
     ResidentDto,
     UpdateIncidentRequest,
+    UpdateMedPassScheduleRequest,
+    UpdateObservationRequest,
     UpdateResidentRequest,
 } from './shalimar-types.g'
 
@@ -54,6 +66,13 @@ export const mutationDefs = {
     Incidents: { method: 'POST', path: '/incidents', invalidates: ['DashboardProps', 'IncidentsProps'] },
     IncidentsById: { method: 'PATCH', path: '/incidents/{id}', invalidates: ['DashboardProps', 'IncidentsProps'] },
     IncidentsByIdDelete: { method: 'POST', path: '/incidents/{id}/delete', invalidates: ['DashboardProps', 'IncidentsProps'] },
+    MedpassPass: { method: 'POST', path: '/medpass/pass', invalidates: ['PassMedsProps'] },
+    MedpassSchedule: { method: 'POST', path: '/medpass/schedule', invalidates: ['MedPassScheduleProps', 'PassMedsProps'] },
+    MedpassScheduleById: { method: 'PATCH', path: '/medpass/schedule/{id}', invalidates: ['MedPassScheduleProps', 'PassMedsProps'] },
+    MedpassScheduleByIdDelete: { method: 'POST', path: '/medpass/schedule/{id}/delete', invalidates: ['MedPassScheduleProps', 'PassMedsProps'] },
+    Observations: { method: 'POST', path: '/observations', invalidates: ['DashboardProps', 'ObservationsProps'] },
+    ObservationsById: { method: 'PATCH', path: '/observations/{id}', invalidates: ['DashboardProps', 'ObservationsProps'] },
+    ObservationsByIdDelete: { method: 'POST', path: '/observations/{id}/delete', invalidates: ['DashboardProps', 'ObservationsProps'] },
     Residents: { method: 'POST', path: '/residents', invalidates: ['DashboardProps', 'ResidentsProps'] },
     ResidentsById: { method: 'PATCH', path: '/residents/{id}', invalidates: ['DashboardProps', 'ResidentsProps'] },
     ResidentsByIdDelete: { method: 'POST', path: '/residents/{id}/delete', invalidates: ['DashboardProps', 'ResidentsProps'] },
@@ -85,6 +104,75 @@ export async function mutateIncidentsByIdDelete(id: string, req: DeleteIncidentR
     if (result.ok) {
         invalidateComponent('DashboardProps' as ComponentKey)
         invalidateComponent('IncidentsProps' as ComponentKey)
+    }
+    return result
+}
+
+export async function mutateMedpassPass(req: PassMedRequest): Promise<MutationResult<PassMedResult>> {
+    const url = '/medpass/pass'
+    const result = await jsonMutation<PassMedRequest, PassMedResult>(url, 'POST', req)
+    if (result.ok) {
+        invalidateComponent('PassMedsProps' as ComponentKey)
+    }
+    return result
+}
+
+export async function mutateMedpassSchedule(req: CreateMedPassScheduleRequest): Promise<MutationResult<MedPassScheduleRowDto>> {
+    const url = '/medpass/schedule'
+    const result = await jsonMutation<CreateMedPassScheduleRequest, MedPassScheduleRowDto>(url, 'POST', req)
+    if (result.ok) {
+        invalidateComponent('MedPassScheduleProps' as ComponentKey)
+        invalidateComponent('PassMedsProps' as ComponentKey)
+    }
+    return result
+}
+
+export async function mutateMedpassScheduleById(id: string, req: UpdateMedPassScheduleRequest): Promise<MutationResult<MedPassScheduleRowDto>> {
+    const url = '/medpass/schedule/' + encodeURIComponent(String(id)) + ''
+    const result = await jsonMutation<UpdateMedPassScheduleRequest, MedPassScheduleRowDto>(url, 'PATCH', req)
+    if (result.ok) {
+        invalidateComponent('MedPassScheduleProps' as ComponentKey)
+        invalidateComponent('PassMedsProps' as ComponentKey)
+    }
+    return result
+}
+
+export async function mutateMedpassScheduleByIdDelete(id: string, req: DeleteMedPassScheduleRequest): Promise<MutationResult<DeleteMedPassScheduleResult>> {
+    const url = '/medpass/schedule/' + encodeURIComponent(String(id)) + '/delete'
+    const result = await jsonMutation<DeleteMedPassScheduleRequest, DeleteMedPassScheduleResult>(url, 'POST', req)
+    if (result.ok) {
+        invalidateComponent('MedPassScheduleProps' as ComponentKey)
+        invalidateComponent('PassMedsProps' as ComponentKey)
+    }
+    return result
+}
+
+export async function mutateObservations(req: CreateObservationRequest): Promise<MutationResult<ObservationDto>> {
+    const url = '/observations'
+    const result = await jsonMutation<CreateObservationRequest, ObservationDto>(url, 'POST', req)
+    if (result.ok) {
+        invalidateComponent('DashboardProps' as ComponentKey)
+        invalidateComponent('ObservationsProps' as ComponentKey)
+    }
+    return result
+}
+
+export async function mutateObservationsById(id: string, req: UpdateObservationRequest): Promise<MutationResult<ObservationDto>> {
+    const url = '/observations/' + encodeURIComponent(String(id)) + ''
+    const result = await jsonMutation<UpdateObservationRequest, ObservationDto>(url, 'PATCH', req)
+    if (result.ok) {
+        invalidateComponent('DashboardProps' as ComponentKey)
+        invalidateComponent('ObservationsProps' as ComponentKey)
+    }
+    return result
+}
+
+export async function mutateObservationsByIdDelete(id: string, req: DeleteObservationRequest): Promise<MutationResult<DeleteObservationResult>> {
+    const url = '/observations/' + encodeURIComponent(String(id)) + '/delete'
+    const result = await jsonMutation<DeleteObservationRequest, DeleteObservationResult>(url, 'POST', req)
+    if (result.ok) {
+        invalidateComponent('DashboardProps' as ComponentKey)
+        invalidateComponent('ObservationsProps' as ComponentKey)
     }
     return result
 }

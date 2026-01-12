@@ -224,6 +224,246 @@ public sealed class SeniorLivingRepository
             return removed;
         }
     }
+
+    public ObservationsGridDto ObservationsGrid(int page, int pageSize, string? q)
+    {
+        lock (_gate)
+        {
+            IEnumerable<ObservationDto> filtered = _observations;
+            if (!string.IsNullOrWhiteSpace(q))
+            {
+                var qq = q.Trim();
+                filtered = filtered.Where(o =>
+                    o.Kind.Contains(qq, StringComparison.OrdinalIgnoreCase) ||
+                    o.Note.Contains(qq, StringComparison.OrdinalIgnoreCase) ||
+                    o.ResidentId.Contains(qq, StringComparison.OrdinalIgnoreCase));
+            }
+
+            var total = filtered.Count();
+            var items = filtered
+                .OrderByDescending(o => o.Ts)
+                .Skip((Math.Max(1, page) - 1) * Math.Max(1, pageSize))
+                .Take(Math.Max(1, pageSize))
+                .ToList();
+
+            return new ObservationsGridDto(page, pageSize, total, items);
+        }
+    }
+
+    public ObservationDto CreateObservation(CreateObservationRequest req)
+    {
+        lock (_gate)
+        {
+            var id = $"o_{_observations.Count + 1}";
+            var now = DateTimeOffset.UtcNow;
+            var created = new ObservationDto(id, now, req.Kind, req.Note, req.ResidentId);
+            _observations.Add(created);
+            return created;
+        }
+    }
+
+    public ObservationDto? UpdateObservation(string id, UpdateObservationRequest req)
+    {
+        lock (_gate)
+        {
+            var idx = _observations.FindIndex(o => o.Id == id);
+            if (idx < 0) return null;
+            var current = _observations[idx];
+            var next = current with
+            {
+                Kind = req.Kind ?? current.Kind,
+                Note = req.Note ?? current.Note,
+                ResidentId = req.ResidentId ?? current.ResidentId,
+            };
+            _observations[idx] = next;
+            return next;
+        }
+    }
+
+    public bool DeleteObservation(string id)
+    {
+        lock (_gate)
+        {
+            var removed = _observations.RemoveAll(o => o.Id == id) > 0;
+            return removed;
+        }
+    }
+
+    public MedPassScheduleGridDto MedPassScheduleGrid(int page, int pageSize, string? q)
+    {
+        lock (_gate)
+        {
+            var residentsById = _residents.ToDictionary(r => r.Id, r => r, StringComparer.Ordinal);
+            var medsById = _meds.ToDictionary(m => m.Id, m => m, StringComparer.Ordinal);
+
+            IEnumerable<MedPassScheduleDto> filtered = _schedules;
+            if (!string.IsNullOrWhiteSpace(q))
+            {
+                var qq = q.Trim();
+                filtered = filtered.Where(s =>
+                    s.ResidentId.Contains(qq, StringComparison.OrdinalIgnoreCase) ||
+                    (residentsById.TryGetValue(s.ResidentId, out var r) && r.Name.Contains(qq, StringComparison.OrdinalIgnoreCase)) ||
+                    s.MedId.Contains(qq, StringComparison.OrdinalIgnoreCase) ||
+                    (medsById.TryGetValue(s.MedId, out var m) && m.Name.Contains(qq, StringComparison.OrdinalIgnoreCase)) ||
+                    s.Frequency.Contains(qq, StringComparison.OrdinalIgnoreCase));
+            }
+
+            var total = filtered.Count();
+            var items = filtered
+                .OrderBy(s => s.ResidentId)
+                .ThenBy(s => s.Time)
+                .Skip((Math.Max(1, page) - 1) * Math.Max(1, pageSize))
+                .Take(Math.Max(1, pageSize))
+                .Select(s =>
+                {
+                    var residentName = residentsById.TryGetValue(s.ResidentId, out var r) ? r.Name : s.ResidentId;
+                    var medName = medsById.TryGetValue(s.MedId, out var m) ? m.Name : s.MedId;
+                    return new MedPassScheduleRowDto(
+                        Id: s.Id,
+                        ResidentId: s.ResidentId,
+                        ResidentName: residentName,
+                        MedId: s.MedId,
+                        MedName: medName,
+                        Time: s.Time.ToString("HH:mm"),
+                        Frequency: s.Frequency);
+                })
+                .ToList();
+
+            return new MedPassScheduleGridDto(page, pageSize, total, items);
+        }
+    }
+
+    public MedPassScheduleRowDto CreateMedPassSchedule(CreateMedPassScheduleRequest req)
+    {
+        lock (_gate)
+        {
+            var id = $"s_{_schedules.Count + 1}";
+            var time = TimeOnly.Parse(req.Time);
+            var created = new MedPassScheduleDto(id, req.ResidentId, req.MedId, time, req.Frequency);
+            _schedules.Add(created);
+
+            var residentName = _residents.FirstOrDefault(r => r.Id == req.ResidentId)?.Name ?? req.ResidentId;
+            var medName = _meds.FirstOrDefault(m => m.Id == req.MedId)?.Name ?? req.MedId;
+            return new MedPassScheduleRowDto(id, req.ResidentId, residentName, req.MedId, medName, time.ToString("HH:mm"), req.Frequency);
+        }
+    }
+
+    public MedPassScheduleRowDto? UpdateMedPassSchedule(string id, UpdateMedPassScheduleRequest req)
+    {
+        lock (_gate)
+        {
+            var idx = _schedules.FindIndex(s => s.Id == id);
+            if (idx < 0) return null;
+
+            var current = _schedules[idx];
+            var next = current with
+            {
+                ResidentId = req.ResidentId ?? current.ResidentId,
+                MedId = req.MedId ?? current.MedId,
+                Time = req.Time is null ? current.Time : TimeOnly.Parse(req.Time),
+                Frequency = req.Frequency ?? current.Frequency,
+            };
+            _schedules[idx] = next;
+
+            var residentName = _residents.FirstOrDefault(r => r.Id == next.ResidentId)?.Name ?? next.ResidentId;
+            var medName = _meds.FirstOrDefault(m => m.Id == next.MedId)?.Name ?? next.MedId;
+            return new MedPassScheduleRowDto(next.Id, next.ResidentId, residentName, next.MedId, medName, next.Time.ToString("HH:mm"), next.Frequency);
+        }
+    }
+
+    public bool DeleteMedPassSchedule(string id)
+    {
+        lock (_gate)
+        {
+            var removed = _schedules.RemoveAll(s => s.Id == id) > 0;
+            return removed;
+        }
+    }
+
+    public PassMedsDueDto PassMedsDue(string? q)
+    {
+        lock (_gate)
+        {
+            var residentsById = _residents.ToDictionary(r => r.Id, r => r, StringComparer.Ordinal);
+            var medsById = _meds.ToDictionary(m => m.Id, m => m, StringComparer.Ordinal);
+
+            IEnumerable<MedPassScheduleDto> filtered = _schedules;
+            if (!string.IsNullOrWhiteSpace(q))
+            {
+                var qq = q.Trim();
+                filtered = filtered.Where(s =>
+                    s.ResidentId.Contains(qq, StringComparison.OrdinalIgnoreCase) ||
+                    (residentsById.TryGetValue(s.ResidentId, out var r) && r.Name.Contains(qq, StringComparison.OrdinalIgnoreCase)) ||
+                    s.MedId.Contains(qq, StringComparison.OrdinalIgnoreCase) ||
+                    (medsById.TryGetValue(s.MedId, out var m) && m.Name.Contains(qq, StringComparison.OrdinalIgnoreCase)));
+            }
+
+            var items = filtered
+                .OrderBy(s => s.Time)
+                .ThenBy(s => s.ResidentId)
+                .Select(s =>
+                {
+                    var residentName = residentsById.TryGetValue(s.ResidentId, out var r) ? r.Name : s.ResidentId;
+                    var medName = medsById.TryGetValue(s.MedId, out var m) ? m.Name : s.MedId;
+                    return new PassMedsDueItemDto(
+                        ScheduleId: s.Id,
+                        ResidentId: s.ResidentId,
+                        ResidentName: residentName,
+                        MedId: s.MedId,
+                        MedName: medName,
+                        Time: s.Time.ToString("HH:mm"),
+                        Frequency: s.Frequency);
+                })
+                .ToList();
+
+            return new PassMedsDueDto(items);
+        }
+    }
+
+    public PassMedsRecentDto PassMedsRecent(int take = 20)
+    {
+        lock (_gate)
+        {
+            var residentsById = _residents.ToDictionary(r => r.Id, r => r, StringComparer.Ordinal);
+            var medsById = _meds.ToDictionary(m => m.Id, m => m, StringComparer.Ordinal);
+
+            var items = _passes
+                .OrderByDescending(p => p.Ts)
+                .Take(Math.Max(1, take))
+                .Select(p =>
+                {
+                    var residentName = residentsById.TryGetValue(p.ResidentId, out var r) ? r.Name : p.ResidentId;
+                    var medName = medsById.TryGetValue(p.MedId, out var m) ? m.Name : p.MedId;
+                    return new MedPassLogItemDto(
+                        Id: p.Id,
+                        Ts: p.Ts,
+                        ResidentId: p.ResidentId,
+                        ResidentName: residentName,
+                        MedId: p.MedId,
+                        MedName: medName,
+                        Outcome: p.Outcome,
+                        Note: p.Note);
+                })
+                .ToList();
+
+            return new PassMedsRecentDto(items);
+        }
+    }
+
+    public PassMedResult PassMed(PassMedRequest req)
+    {
+        lock (_gate)
+        {
+            var sched = _schedules.FirstOrDefault(s => s.Id == req.ScheduleId);
+            if (sched is null) throw new InvalidOperationException($"Schedule not found: {req.ScheduleId}");
+
+            var id = $"p_{_passes.Count + 1}";
+            var now = DateTimeOffset.UtcNow;
+            var log = new MedPassLogDto(id, now, sched.ResidentId, sched.MedId, req.Outcome, req.Note);
+            _passes.Add(log);
+            return new PassMedResult(id);
+        }
+    }
 }
 
 public sealed record DashboardCountsDto(int Residents, int Incidents, int Observations);
@@ -238,10 +478,33 @@ public sealed record MedPassLogDto(string Id, DateTimeOffset Ts, string Resident
 
 public sealed record ResidentsGridDto(int Page, int PageSize, int Total, IReadOnlyList<ResidentDto> Items);
 public sealed record IncidentsGridDto(int Page, int PageSize, int Total, IReadOnlyList<IncidentDto> Items);
+public sealed record ObservationsGridDto(int Page, int PageSize, int Total, IReadOnlyList<ObservationDto> Items);
+public sealed record MedPassScheduleGridDto(int Page, int PageSize, int Total, IReadOnlyList<MedPassScheduleRowDto> Items);
+public sealed record MedPassScheduleRowDto(
+    string Id,
+    string ResidentId,
+    string ResidentName,
+    string MedId,
+    string MedName,
+    string Time,
+    string Frequency);
 
 public sealed record CreateResidentRequest(string Name, string Room, string CareLevel);
 public sealed record UpdateResidentRequest(string? Name, string? Room, string? CareLevel);
 
 public sealed record CreateIncidentRequest(string Kind, string Summary, string Status, string ResidentId);
 public sealed record UpdateIncidentRequest(string? Kind, string? Summary, string? Status, string? ResidentId);
+
+public sealed record CreateObservationRequest(string Kind, string Note, string ResidentId);
+public sealed record UpdateObservationRequest(string? Kind, string? Note, string? ResidentId);
+
+public sealed record CreateMedPassScheduleRequest(string ResidentId, string MedId, string Time, string Frequency);
+public sealed record UpdateMedPassScheduleRequest(string? ResidentId, string? MedId, string? Time, string? Frequency);
+
+public sealed record PassMedsDueDto(IReadOnlyList<PassMedsDueItemDto> Items);
+public sealed record PassMedsDueItemDto(string ScheduleId, string ResidentId, string ResidentName, string MedId, string MedName, string Time, string Frequency);
+public sealed record PassMedsRecentDto(IReadOnlyList<MedPassLogItemDto> Items);
+public sealed record MedPassLogItemDto(string Id, DateTimeOffset Ts, string ResidentId, string ResidentName, string MedId, string MedName, string Outcome, string? Note);
+public sealed record PassMedRequest(string ScheduleId, string Outcome, string? Note);
+public sealed record PassMedResult(string PassId);
 
