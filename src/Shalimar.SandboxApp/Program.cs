@@ -5,6 +5,7 @@ using Shalimar.SandboxApp.Features.SeniorLiving;
 using FluentValidation;
 using Shalimar.SandboxApp.Features.V2.Dashboard;
 using Shalimar.SandboxApp.Features.V2.Residents;
+using Shalimar.SandboxApp.Features.V2.Incidents;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -21,6 +22,8 @@ builder.Services.AddShalimarVite();
 builder.Services.AddSingleton<SeniorLivingRepository>();
 builder.Services.AddSingleton<IValidator<CreateResidentRequest>, CreateResidentRequestValidator>();
 builder.Services.AddSingleton<IValidator<UpdateResidentRequest>, UpdateResidentRequestValidator>();
+builder.Services.AddSingleton<IValidator<CreateIncidentRequest>, CreateIncidentRequestValidator>();
+builder.Services.AddSingleton<IValidator<UpdateIncidentRequest>, UpdateIncidentRequestValidator>();
 
 var app = builder.Build();
 app.UseShalimar();
@@ -158,6 +161,96 @@ app.MapPost("/residents/{id}/delete", (SeniorLivingRepository repo, string id, D
     var ok = repo.DeleteResident(id);
     return Results.Ok(new DeleteResidentResult(ok));
 }).AsMutation<DeleteResidentRequest, DeleteResidentResult>();
+
+app.MapGet("/incidents", (HttpRequest req, SeniorLivingRepository repo) =>
+{
+    static int GetInt(HttpRequest req, string key, int fallback)
+    {
+        var raw = req.Query[key].ToString();
+        return int.TryParse(raw, out var v) ? v : fallback;
+    }
+
+    static string? GetString(HttpRequest req, string key)
+    {
+        var raw = req.Query[key].ToString();
+        return string.IsNullOrWhiteSpace(raw) ? null : raw;
+    }
+
+    var q = GetString(req, "q");
+    var page = GetInt(req, "page", 1);
+    var pageSize = GetInt(req, "pageSize", 20);
+    var pane = GetString(req, "pane");
+
+    var href = BuildQueryHref(
+        "/incidents/grid",
+        new[]
+        {
+            ("q", q),
+            ("page", page.ToString()),
+            ("pageSize", pageSize.ToString()),
+        });
+
+    var props = new IncidentsProps(
+        Title: "Incidents",
+        Query: q,
+        Page: page,
+        PageSize: pageSize,
+        Pane: pane,
+        Grid: new Deferred<IncidentsGridDto>(href));
+
+    return ShalimarTypedResults.Component(MakeContext(app), props, "Shalimar");
+}).ForTsxFile("Features/V2/Incidents/IncidentsPage.tsx").AsComponent<IncidentsProps>();
+
+app.MapGet("/incidents/grid", (HttpRequest req, SeniorLivingRepository repo) =>
+{
+    static int GetInt(HttpRequest req, string key, int fallback)
+    {
+        var raw = req.Query[key].ToString();
+        return int.TryParse(raw, out var v) ? v : fallback;
+    }
+
+    static string? GetString(HttpRequest req, string key)
+    {
+        var raw = req.Query[key].ToString();
+        return string.IsNullOrWhiteSpace(raw) ? null : raw;
+    }
+
+    var q = GetString(req, "q");
+    var page = GetInt(req, "page", 1);
+    var pageSize = GetInt(req, "pageSize", 20);
+
+    return repo.IncidentsGrid(page, pageSize, q);
+})
+    .ForComponent<IncidentsProps>()
+    .ForNode<IncidentsProps>(p => p.Grid)
+    .AsDeferred<IncidentsGridDto>();
+
+app.MapPost("/incidents", async (SeniorLivingRepository repo, IValidator<CreateIncidentRequest> v, CreateIncidentRequest req) =>
+{
+    var result = await v.ValidateAsync(req);
+    if (!result.IsValid) return Results.ValidationProblem(ToValidationProblem(result));
+    return Results.Ok(repo.CreateIncident(req));
+}).AsMutation<CreateIncidentRequest, IncidentDto>()
+  .Invalidates<IncidentsProps>()
+  .Invalidates<DashboardProps>();
+
+app.MapPatch("/incidents/{id}", async (SeniorLivingRepository repo, IValidator<UpdateIncidentRequest> v, string id, UpdateIncidentRequest req) =>
+{
+    var result = await v.ValidateAsync(req);
+    if (!result.IsValid) return Results.ValidationProblem(ToValidationProblem(result));
+    var updated = repo.UpdateIncident(id, req);
+    return updated is null ? Results.NotFound() : Results.Ok(updated);
+}).AsMutation<UpdateIncidentRequest, IncidentDto>()
+  .Invalidates<IncidentsProps>()
+  .Invalidates<DashboardProps>();
+
+app.MapPost("/incidents/{id}/delete", (SeniorLivingRepository repo, string id, DeleteIncidentRequest req) =>
+{
+    var ok = repo.DeleteIncident(id);
+    return Results.Ok(new DeleteIncidentResult(ok));
+}).AsMutation<DeleteIncidentRequest, DeleteIncidentResult>()
+  .Invalidates<IncidentsProps>()
+  .Invalidates<DashboardProps>();
 
 if (!string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("SHALIMAR_TESTING")))
 {

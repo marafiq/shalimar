@@ -69,3 +69,7 @@ CodeCoverage/
 *.VisualState.xml
 TestResult.xml
 nunit-*.xml
+
+# Local app logs (test harness)
+app.log
+app.log.err

@@ -12,13 +12,29 @@ public class UiTests(SandboxAppFixture fixture)
         await page.WaitForFunctionAsync("() => { const el = document.getElementById('root'); return !!el && el.childElementCount > 0; }");
     }
 
+    private static bool ShouldIgnoreConsoleError(string text)
+    {
+        // Chromium reports fetch/XHR 400s as console errors ("Failed to load resource...").
+        // In our TDD flows, we intentionally trigger 400 ValidationProblem responses.
+        if (text.Contains("Failed to load resource", StringComparison.OrdinalIgnoreCase) &&
+            text.Contains("status of 400", StringComparison.OrdinalIgnoreCase))
+            return true;
+
+        return false;
+    }
+
     [Fact]
     public async Task Dashboard_Widgets_Open_Modals()
     {
         await fixture.ResetAsync();
         var (context, page) = await fixture.NewPageAsync();
         var errors = new List<string>();
-        page.Console += (_, m) => { if (m.Type == "error") errors.Add($"console: {m.Text}"); };
+        page.Console += (_, m) =>
+        {
+            if (m.Type != "error") return;
+            if (ShouldIgnoreConsoleError(m.Text)) return;
+            errors.Add($"console: {m.Text}");
+        };
         page.PageError += (_, e) => errors.Add($"pageerror: {e}");
         try
         {
@@ -49,7 +65,12 @@ public class UiTests(SandboxAppFixture fixture)
         await fixture.ResetAsync();
         var (context, page) = await fixture.NewPageAsync();
         var errors = new List<string>();
-        page.Console += (_, m) => { if (m.Type == "error") errors.Add($"console: {m.Text}"); };
+        page.Console += (_, m) =>
+        {
+            if (m.Type != "error") return;
+            if (ShouldIgnoreConsoleError(m.Text)) return;
+            errors.Add($"console: {m.Text}");
+        };
         page.PageError += (_, e) => errors.Add($"pageerror: {e}");
         try
         {
@@ -58,7 +79,7 @@ public class UiTests(SandboxAppFixture fixture)
             await WaitForReactAsync(page);
 
             await page.GetByTestId("resident-save").ClickAsync();
-            await page.GetByText("must not be empty", new() { Exact = false }).WaitForAsync();
+            await page.GetByText("'Name' must not be empty.", new() { Exact = true }).WaitForAsync();
 
             await page.GetByLabel("Name").FillAsync("Robert Green");
             await page.GetByLabel("Room").FillAsync("C-105");
@@ -83,7 +104,12 @@ public class UiTests(SandboxAppFixture fixture)
         await fixture.ResetAsync();
         var (context, page) = await fixture.NewPageAsync();
         var errors = new List<string>();
-        page.Console += (_, m) => { if (m.Type == "error") errors.Add($"console: {m.Text}"); };
+        page.Console += (_, m) =>
+        {
+            if (m.Type != "error") return;
+            if (ShouldIgnoreConsoleError(m.Text)) return;
+            errors.Add($"console: {m.Text}");
+        };
         page.PageError += (_, e) => errors.Add($"pageerror: {e}");
         try
         {

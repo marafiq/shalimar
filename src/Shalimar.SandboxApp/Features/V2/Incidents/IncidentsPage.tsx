@@ -1,9 +1,9 @@
 import { Button, Heading, TextField } from '@react-spectrum/s2'
 import { Suspense, useMemo, useState } from 'react'
 import { paths } from '@generated/paths'
-import { invalidateResidentsPropsGrid, useResidentsProps, useResidentsPropsGridDeferred } from '@generated/store'
-import { useMutations } from '@generated/useMutations'
 import type { ValidationErrors } from '@generated/store'
+import { invalidateIncidentsPropsGrid, useIncidentsProps, useIncidentsPropsGridDeferred } from '@generated/store'
+import { useMutations } from '@generated/useMutations'
 
 function GridSkeleton() {
     return (
@@ -48,16 +48,16 @@ function useSubmit<TReq, TRes>(mutate: (req: TReq) => Promise<{ ok: true; value:
     return { busy, validation, error, submit } as const
 }
 
-function ResidentsGrid() {
-    const props = useResidentsProps()
-    const grid = useResidentsPropsGridDeferred()
+function IncidentsGrid() {
+    const props = useIncidentsProps()
+    const grid = useIncidentsPropsGridDeferred()
 
-    const prevHref = buildHref(paths.residentsProps(), {
+    const prevHref = buildHref(paths.incidentsProps(), {
         q: props.query ?? undefined,
         page: String(Math.max(1, props.page - 1)),
         pageSize: String(props.pageSize),
     })
-    const nextHref = buildHref(paths.residentsProps(), {
+    const nextHref = buildHref(paths.incidentsProps(), {
         q: props.query ?? undefined,
         page: String(props.page + 1),
         pageSize: String(props.pageSize),
@@ -65,22 +65,25 @@ function ResidentsGrid() {
 
     return (
         <div className="overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-sm">
-            <div className="border-b border-zinc-200 px-4 py-3 text-sm font-semibold">Residents</div>
+            <div className="border-b border-zinc-200 px-4 py-3 text-sm font-semibold">Incidents</div>
             <div className="divide-y divide-zinc-200">
-                {grid.items.map((r) => (
+                {grid.items.map((i) => (
                     <a
-                        key={r.id}
-                        href={buildHref(paths.residentsProps(), { q: props.query ?? undefined, page: String(props.page), pageSize: String(props.pageSize), pane: r.id })}
-                        className="flex items-center justify-between gap-3 px-4 py-3 hover:bg-zinc-50"
-                        data-testid="resident-row"
+                        key={i.id}
+                        href={buildHref(paths.incidentsProps(), { q: props.query ?? undefined, page: String(props.page), pageSize: String(props.pageSize), pane: i.id })}
+                        className="block px-4 py-3 hover:bg-zinc-50"
+                        data-testid="incident-row"
                     >
-                        <div className="min-w-0">
-                            <div className="truncate text-sm font-medium">{r.name}</div>
-                            <div className="mt-0.5 text-xs text-zinc-500">
-                                {r.careLevel} · Room {r.room}
+                        <div className="flex items-start justify-between gap-3">
+                            <div className="min-w-0">
+                                <div className="truncate text-sm font-medium">{i.kind}</div>
+                                <div className="mt-0.5 text-xs text-zinc-500">
+                                    {i.status} · {i.residentId}
+                                </div>
                             </div>
+                            <div className="shrink-0 text-xs text-zinc-500">{new Date(i.ts).toLocaleString()}</div>
                         </div>
-                        <div className="shrink-0 text-xs text-zinc-500">{r.id}</div>
+                        <div className="mt-2 text-xs text-zinc-600">{i.summary}</div>
                     </a>
                 ))}
             </div>
@@ -113,29 +116,30 @@ function ResidentsGrid() {
     )
 }
 
-function ResidentPane(props: { mode: 'new' | 'edit'; residentId?: string; onCloseHref: string }) {
+function IncidentPane(props: { mode: 'new' | 'edit'; incidentId?: string; onCloseHref: string }) {
     const mutations = useMutations()
-    const create = useSubmit(mutations.Residents.mutate)
-    const update = useSubmit((req) => mutations.ResidentsById.mutate(props.residentId!, req))
-    const del = useSubmit((req) => mutations.ResidentsByIdDelete.mutate(props.residentId!, req))
+    const create = useSubmit(mutations.Incidents.mutate)
+    const update = useSubmit((req) => mutations.IncidentsById.mutate(props.incidentId!, req))
+    const del = useSubmit((req) => mutations.IncidentsByIdDelete.mutate(props.incidentId!, req))
 
-    const title = props.mode === 'new' ? 'New resident' : `Edit resident ${props.residentId}`
+    const title = props.mode === 'new' ? 'New incident' : `Edit incident ${props.incidentId}`
 
-    const [name, setName] = useState('')
-    const [room, setRoom] = useState('')
-    const [careLevel, setCareLevel] = useState('')
+    const [kind, setKind] = useState('')
+    const [summary, setSummary] = useState('')
+    const [status, setStatus] = useState('open')
+    const [residentId, setResidentId] = useState('')
 
     const onSave = async () => {
         if (props.mode === 'new') {
-            const created = await create.submit({ name, room, careLevel })
+            const created = await create.submit({ kind, summary, status, residentId })
             if (!created) return
-            invalidateResidentsPropsGrid()
+            invalidateIncidentsPropsGrid()
             window.location.assign(props.onCloseHref)
             return
         }
-        const updated = await update.submit({ name: name || undefined, room: room || undefined, careLevel: careLevel || undefined })
+        const updated = await update.submit({ kind: kind || undefined, summary: summary || undefined, status: status || undefined, residentId: residentId || undefined })
         if (!updated) return
-        invalidateResidentsPropsGrid()
+        invalidateIncidentsPropsGrid()
         window.location.assign(props.onCloseHref)
     }
 
@@ -143,51 +147,58 @@ function ResidentPane(props: { mode: 'new' | 'edit'; residentId?: string; onClos
         if (props.mode !== 'edit') return
         const res = await del.submit({})
         if (!res) return
-        invalidateResidentsPropsGrid()
+        invalidateIncidentsPropsGrid()
         window.location.assign(props.onCloseHref)
     }
 
     const validation = (props.mode === 'new' ? create.validation : update.validation) ?? null
 
     return (
-        <div className="fixed inset-y-0 right-0 z-50 w-[min(520px,100vw)] border-l border-zinc-200 bg-white shadow-xl">
+        <div className="fixed inset-y-0 right-0 z-50 w-[min(560px,100vw)] border-l border-zinc-200 bg-white shadow-xl">
             <div className="flex items-center justify-between gap-3 border-b border-zinc-200 px-4 py-3">
                 <div className="min-w-0">
                     <div className="text-sm font-semibold">{title}</div>
-                    <div className="mt-0.5 text-xs text-zinc-500">Server-truth validation (FluentValidation)</div>
+                    <div className="mt-0.5 text-xs text-zinc-500">Create/edit/delete via generated mutations.</div>
                 </div>
-                <a href={props.onCloseHref} className="text-sm text-zinc-600 hover:underline" aria-label="Close resident pane">
+                <a href={props.onCloseHref} className="text-sm text-zinc-600 hover:underline" aria-label="Close incident pane">
                     Close
                 </a>
             </div>
             <div className="space-y-4 p-4">
                 <TextField
-                    label="Name"
-                    value={name}
-                    onChange={(v) => setName(v)}
-                    validationState={validation?.Name?.length ? 'invalid' : undefined}
-                    errorMessage={validation?.Name?.[0]}
+                    label="Kind"
+                    value={kind}
+                    onChange={(v) => setKind(v)}
+                    validationState={validation?.Kind?.length ? 'invalid' : undefined}
+                    errorMessage={validation?.Kind?.[0]}
                 />
                 <TextField
-                    label="Room"
-                    value={room}
-                    onChange={(v) => setRoom(v)}
-                    validationState={validation?.Room?.length ? 'invalid' : undefined}
-                    errorMessage={validation?.Room?.[0]}
+                    label="Summary"
+                    value={summary}
+                    onChange={(v) => setSummary(v)}
+                    validationState={validation?.Summary?.length ? 'invalid' : undefined}
+                    errorMessage={validation?.Summary?.[0]}
                 />
                 <TextField
-                    label="Care level"
-                    value={careLevel}
-                    onChange={(v) => setCareLevel(v)}
-                    validationState={validation?.CareLevel?.length ? 'invalid' : undefined}
-                    errorMessage={validation?.CareLevel?.[0]}
+                    label="Status"
+                    value={status}
+                    onChange={(v) => setStatus(v)}
+                    validationState={validation?.Status?.length ? 'invalid' : undefined}
+                    errorMessage={validation?.Status?.[0]}
+                />
+                <TextField
+                    label="Resident id"
+                    value={residentId}
+                    onChange={(v) => setResidentId(v)}
+                    validationState={validation?.ResidentId?.length ? 'invalid' : undefined}
+                    errorMessage={validation?.ResidentId?.[0]}
                 />
 
                 {(create.error || update.error || del.error) ? <div className="text-sm text-red-600">{create.error ?? update.error ?? del.error}</div> : null}
 
                 <div className="flex items-center justify-between gap-2">
                     {props.mode === 'edit' ? (
-                        <Button variant="negative" onPress={onDelete} isDisabled={del.busy} data-testid="resident-delete">
+                        <Button variant="negative" onPress={onDelete} isDisabled={del.busy} data-testid="incident-delete">
                             Delete
                         </Button>
                     ) : (
@@ -197,7 +208,7 @@ function ResidentPane(props: { mode: 'new' | 'edit'; residentId?: string; onClos
                         <Button variant="secondary" onPress={() => window.location.assign(props.onCloseHref)}>
                             Cancel
                         </Button>
-                        <Button variant="primary" onPress={onSave} isDisabled={create.busy || update.busy} data-testid="resident-save">
+                        <Button variant="primary" onPress={onSave} isDisabled={create.busy || update.busy} data-testid="incident-save">
                             Save
                         </Button>
                     </div>
@@ -207,10 +218,10 @@ function ResidentPane(props: { mode: 'new' | 'edit'; residentId?: string; onClos
     )
 }
 
-export default function ResidentsPage() {
-    const props = useResidentsProps()
+export default function IncidentsPage() {
+    const props = useIncidentsProps()
 
-    const base = paths.residentsProps()
+    const base = paths.incidentsProps()
     const [q, setQ] = useState(props.query ?? '')
     const applyHref = useMemo(
         () =>
@@ -232,8 +243,8 @@ export default function ResidentsPage() {
                     <Heading level={2}>{props.title}</Heading>
                     <div className="mt-1 text-sm text-zinc-600">Filter + paging + CRUD side pane; invalidates grid on success.</div>
                 </div>
-                <a href={newHref} className="rounded-xl bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700" data-testid="resident-new">
-                    New resident
+                <a href={newHref} className="rounded-xl bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700" data-testid="incident-new">
+                    New incident
                 </a>
             </div>
 
@@ -242,19 +253,19 @@ export default function ResidentsPage() {
                     <div className="text-sm font-semibold">Filters</div>
                     <div className="mt-4 space-y-3">
                         <TextField label="Search" value={q} onChange={(v) => setQ(v)} />
-                        <a href={applyHref} className="inline-block rounded-xl border border-zinc-200 px-3 py-2 text-sm hover:bg-zinc-50" data-testid="resident-apply">
+                        <a href={applyHref} className="inline-block rounded-xl border border-zinc-200 px-3 py-2 text-sm hover:bg-zinc-50" data-testid="incident-apply">
                             Apply
                         </a>
                     </div>
                 </div>
 
                 <Suspense fallback={<GridSkeleton />}>
-                    <ResidentsGrid />
+                    <IncidentsGrid />
                 </Suspense>
             </div>
 
-            {props.pane === 'new' ? <ResidentPane mode="new" onCloseHref={closeHref} /> : null}
-            {props.pane && props.pane !== 'new' ? <ResidentPane mode="edit" residentId={props.pane} onCloseHref={closeHref} /> : null}
+            {props.pane === 'new' ? <IncidentPane mode="new" onCloseHref={closeHref} /> : null}
+            {props.pane && props.pane !== 'new' ? <IncidentPane mode="edit" incidentId={props.pane} onCloseHref={closeHref} /> : null}
         </div>
     )
 }

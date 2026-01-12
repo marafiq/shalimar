@@ -158,6 +158,72 @@ public sealed class SeniorLivingRepository
             return removed;
         }
     }
+
+    public IncidentsGridDto IncidentsGrid(int page, int pageSize, string? q)
+    {
+        lock (_gate)
+        {
+            IEnumerable<IncidentDto> filtered = _incidents;
+            if (!string.IsNullOrWhiteSpace(q))
+            {
+                var qq = q.Trim();
+                filtered = filtered.Where(i =>
+                    i.Kind.Contains(qq, StringComparison.OrdinalIgnoreCase) ||
+                    i.Summary.Contains(qq, StringComparison.OrdinalIgnoreCase) ||
+                    i.Status.Contains(qq, StringComparison.OrdinalIgnoreCase) ||
+                    i.ResidentId.Contains(qq, StringComparison.OrdinalIgnoreCase));
+            }
+
+            var total = filtered.Count();
+            var items = filtered
+                .OrderByDescending(i => i.Ts)
+                .Skip((Math.Max(1, page) - 1) * Math.Max(1, pageSize))
+                .Take(Math.Max(1, pageSize))
+                .ToList();
+
+            return new IncidentsGridDto(page, pageSize, total, items);
+        }
+    }
+
+    public IncidentDto CreateIncident(CreateIncidentRequest req)
+    {
+        lock (_gate)
+        {
+            var id = $"i_{_incidents.Count + 1}";
+            var now = DateTimeOffset.UtcNow;
+            var created = new IncidentDto(id, now, req.Kind, req.Summary, req.Status, req.ResidentId);
+            _incidents.Add(created);
+            return created;
+        }
+    }
+
+    public IncidentDto? UpdateIncident(string id, UpdateIncidentRequest req)
+    {
+        lock (_gate)
+        {
+            var idx = _incidents.FindIndex(i => i.Id == id);
+            if (idx < 0) return null;
+            var current = _incidents[idx];
+            var next = current with
+            {
+                Kind = req.Kind ?? current.Kind,
+                Summary = req.Summary ?? current.Summary,
+                Status = req.Status ?? current.Status,
+                ResidentId = req.ResidentId ?? current.ResidentId,
+            };
+            _incidents[idx] = next;
+            return next;
+        }
+    }
+
+    public bool DeleteIncident(string id)
+    {
+        lock (_gate)
+        {
+            var removed = _incidents.RemoveAll(i => i.Id == id) > 0;
+            return removed;
+        }
+    }
 }
 
 public sealed record DashboardCountsDto(int Residents, int Incidents, int Observations);
@@ -171,7 +237,11 @@ public sealed record MedPassScheduleDto(string Id, string ResidentId, string Med
 public sealed record MedPassLogDto(string Id, DateTimeOffset Ts, string ResidentId, string MedId, string Outcome, string? Note);
 
 public sealed record ResidentsGridDto(int Page, int PageSize, int Total, IReadOnlyList<ResidentDto> Items);
+public sealed record IncidentsGridDto(int Page, int PageSize, int Total, IReadOnlyList<IncidentDto> Items);
 
 public sealed record CreateResidentRequest(string Name, string Room, string CareLevel);
 public sealed record UpdateResidentRequest(string? Name, string? Room, string? CareLevel);
+
+public sealed record CreateIncidentRequest(string Kind, string Summary, string Status, string ResidentId);
+public sealed record UpdateIncidentRequest(string? Kind, string? Summary, string? Status, string? ResidentId);
 
