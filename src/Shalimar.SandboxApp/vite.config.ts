@@ -24,8 +24,6 @@ export default defineConfig({
     plugins: [
         react(),
         TanStackRouterVite({
-            // Route modules are virtual and may live under both Features/ and Generated/.
-            // Root route lives under Features/App/root.tsx.
             routesDirectory: '.',
             virtualRouteConfig: 'Generated/shalimar-routes.g.ts',
             generatedRouteTree: 'Generated/routeTree.gen.ts',

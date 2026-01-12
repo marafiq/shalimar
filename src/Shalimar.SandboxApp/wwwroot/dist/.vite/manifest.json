@@ -1,0 +1,11 @@
+{
+  "Features/App/main.tsx": {
+    "file": "assets/main-D33SzP6_.js",
+    "name": "main",
+    "src": "Features/App/main.tsx",
+    "isEntry": true,
+    "css": [
+      "assets/main-DfTHdb5O.css"
+    ]
+  }
+}

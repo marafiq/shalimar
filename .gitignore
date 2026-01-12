@@ -15,8 +15,7 @@ node_modules/
 bun.lockb
 *.bak.verify
 
-# Generated sandbox app (created from template)
-src/Shalimar.SandboxApp/
+# Sandbox app is now a first-class repo project (do not ignore)
 
 # Vite build output
 wwwroot/dist/

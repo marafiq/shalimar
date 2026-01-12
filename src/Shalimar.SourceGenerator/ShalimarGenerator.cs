@@ -2350,10 +2350,10 @@ public class ShalimarGenerator : IIncrementalGenerator
         tsSb.AppendLine("} from './shalimar-types.g'");
         tsSb.AppendLine();
 
-        tsSb.AppendLine("export type MutationSpec<TReq, TRes> = {");
+        tsSb.AppendLine("export type MutationSpec<TParams extends any[], TReq, TRes> = {");
         tsSb.AppendLine("    defaults: TReq");
         tsSb.AppendLine("    schema: z.ZodTypeAny");
-        tsSb.AppendLine("    mutate: (req: TReq) => Promise<MutationResult<TRes>>");
+        tsSb.AppendLine("    mutate: (...args: [...TParams, TReq]) => Promise<MutationResult<TRes>>");
         tsSb.AppendLine("    // Optional: server keys for mapping nested validation (PascalCase + [index])");
         tsSb.AppendLine("    serverKey: (path: Array<string | number>) => string");
         tsSb.AppendLine("    mapClientIssues?: (issues: Array<{ path: Array<string | number>; message: string }>) => ValidationErrors");
@@ -2392,8 +2392,13 @@ public class ShalimarGenerator : IIncrementalGenerator
         {
             var req = m.RequestType.Name;
             var res = m.ResponseType.Name;
+            var routeParams = ExtractRouteParams(m.Path);
+            var tuple = routeParams.Count == 0
+                ? "[]"
+                : "[" + string.Join(", ", routeParams.Select(p => $"{SanitizeIdentifier(p)}: string")) + "]";
+
             // Key is the logical mutation name, value points at the generated mutate function.
-            tsSb.AppendLine($"    {m.MethodName}: {{ defaults: {req}Defaults, schema: {req}Schema, mutate: mutate{m.MethodName}, serverKey: defaultServerKey, mapClientIssues: mapIssues }} satisfies MutationSpec<{req}, {res}>,");
+            tsSb.AppendLine($"    {m.MethodName}: {{ defaults: {req}Defaults, schema: {req}Schema, mutate: mutate{m.MethodName}, serverKey: defaultServerKey, mapClientIssues: mapIssues }} satisfies MutationSpec<{tuple}, {req}, {res}>,");
         }
         tsSb.AppendLine("} as const");
         tsSb.AppendLine();
