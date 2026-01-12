@@ -165,7 +165,7 @@ app.MapGet("/tasks", async (HttpContext http, CrmRepository repo) =>
 }).ForTsxFile("Features/Tasks/route.tsx").AsComponent<TasksProps>();
 
 // v2: server-authored tree + pure TSX renderer (route module is generated under Generated/V2Routes/**).
-app.MapGet("/v2/workbench", async (HttpContext http, CrmRepository repo) =>
+app.MapGet("/v2/workbench", (CrmRepository repo) =>
 {
     var agentPanel = new Component<WorkbenchAgentPanelProps>(
         new WorkbenchAgentPanelProps(
@@ -210,7 +210,7 @@ static string BuildQueryHref(string path, (string Key, string? Value)[] items)
     return parts.Count == 0 ? path : path + "?" + string.Join("&", parts);
 }
 
-app.MapGet("/v2/tasks", async (HttpContext http, HttpRequest req, CrmRepository repo) =>
+app.MapGet("/v2/tasks", (HttpRequest req, CrmRepository repo) =>
 {
     string? GetString(string key)
     {
@@ -272,7 +272,7 @@ app.MapGet("/v2/tasks/grid", (HttpRequest req, CrmRepository repo) =>
     .ForNode<V2TasksProps>(p => p.Grid)
     .AsDeferred<CrmTasksGridDto>();
 
-app.MapGet("/v2/live", async (HttpContext http, CrmRepository repo) =>
+app.MapGet("/v2/live", (CrmRepository repo) =>
 {
     var realtime = new Component<LiveRealtimePanelProps>(
         new LiveRealtimePanelProps(

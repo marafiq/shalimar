@@ -52,23 +52,23 @@ public class FeatureCoverageTests(SandboxAppFixture fixture)
         {
             await fixture.ResetCrmAsync();
 
-            var cases = new (string Path, string Heading)[]
+            var cases = new[]
             {
-                ("/", "Welcome to Shalimar"),
-                ("/tasks", "Tasks"),
-                ("/tasks/board", "Board"),
-                ("/v2/workbench", "V2 Workbench"),
-                ("/v2/tasks", "V2 Tasks"),
-                ("/v2/live", "V2 Live"),
-                ("/accounts", "Accounts"),
-                ("/accounts/a_2", "Account"),
-                ("/settings", "Settings"),
+                "/",
+                "/tasks",
+                "/tasks/board",
+                "/v2/workbench",
+                "/v2/tasks",
+                "/v2/live",
+                "/accounts",
+                "/accounts/a_2",
+                "/settings",
             };
 
             foreach (var c in cases)
             {
                 // "Refresh works" is a server contract in Shalimar (not SPA). Prove the server returns valid shells on all routes.
-                var html = await fixture.GetHtmlAsync(c.Path);
+                var html = await fixture.GetHtmlAsync(c);
                 Assert.Contains("__SHALIMAR_CONTEXT__", html);
                 Assert.Contains("__SHALIMAR_PROPS__", html);
             }

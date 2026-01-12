@@ -1,5 +1,5 @@
 import { Button, Heading, Text } from '@react-spectrum/s2'
-import { Suspense, useEffect } from 'react'
+import { Suspense } from 'react'
 import { useV2LiveProps, useV2LivePropsRealtimePanelAuditStream, useV2LivePropsRealtimePanelNotificationsSse, useV2LivePropsSummaryDeferred, useV2LivePropsTimelineLazy } from '@generated/store'
 
 function Card(props: { title: string; children: React.ReactNode; footer?: React.ReactNode }) {
@@ -34,10 +34,6 @@ function SummaryCards() {
 
 function Timeline() {
     const tl = useV2LivePropsTimelineLazy()
-
-    useEffect(() => {
-        // Keep deterministic initial render: do not auto-load.
-    }, [])
 
     return (
         <Card
