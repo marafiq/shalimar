@@ -287,6 +287,7 @@ function NavItem(props: {
         <Link
             to={props.to}
             onClick={props.onNavigate}
+            reloadDocument
             className={[
                 'group relative flex items-center justify-between rounded-xl px-3 py-2 text-sm',
                 'hover:bg-zinc-100 dark:hover:bg-zinc-900/60',
